@@ -12,6 +12,12 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.LinkedList;
+
 public class Server {
 
     public void run() throws Exception {
@@ -43,4 +49,16 @@ public class Server {
     public static void main(String[] args) throws Exception {
         new Server().run();
     }
+
+    public static LinkedList<String> refreshFiles(String path){
+        LinkedList<String> filesList = new LinkedList<>();
+        try {
+            Files.list(Paths.get(path)).forEach(p->filesList.add(p.toString()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println(filesList);
+        return filesList;
+    }
+
 }

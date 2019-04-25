@@ -21,8 +21,8 @@
 
     <HBox fx:id="hbControlPanel">
         <TextField fx:id="tfFilename" promptText="Имя файла" HBox.hgrow="ALWAYS"/>
-        <Button onAction="#send" text="Отправить"/>
-        <Button onAction="#receive" text="Получить"/>
+        <Button onAction="#sendFile" text="Отправить"/>
+        <Button onAction="#receiveFile" text="Получить"/>
     </HBox>
 
 </VBox>

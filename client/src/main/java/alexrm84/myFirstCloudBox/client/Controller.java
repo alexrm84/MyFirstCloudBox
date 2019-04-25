@@ -2,6 +2,8 @@ package alexrm84.myFirstCloudBox.client;
 
 import alexrm84.myFirstCloudBox.common.AbstractMessage;
 import alexrm84.myFirstCloudBox.common.FileMessage;
+import alexrm84.myFirstCloudBox.common.SystemMessage;
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -32,6 +34,7 @@ public class Controller implements Initializable {
 
     private boolean authenticated;
     private String nickname;
+    private String rootClientPath, rootServerPath;
     private String currentClientPath, currentServerPath;
 
     public void setAuthenticated(boolean authenticated) {
@@ -45,7 +48,6 @@ public class Controller implements Initializable {
             lvClientFilesList.getItems().clear();
             lvServerFilesList.getItems().clear();
         }else {
-            refreshClientFilesList(currentClientPath);
             work();
         }
 
@@ -54,7 +56,10 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         setAuthenticated(false);
-        currentClientPath = "client_storage";
+        rootClientPath = "client_storage";
+        currentClientPath = rootClientPath;
+        rootServerPath = "server_storage";
+        currentServerPath = rootServerPath;
         Network.start();
         Thread thread = new Thread(()->{
             try {
@@ -64,6 +69,12 @@ public class Controller implements Initializable {
                         FileMessage fileMessage = (FileMessage)abstractMessage;
                         Files.write(Paths.get("client_storage/" + fileMessage.getFilename()),fileMessage.getData(), StandardOpenOption.CREATE);
 //                        refreshFilesList("client_storage");
+                    }
+                    if (abstractMessage instanceof SystemMessage){
+                        SystemMessage systemMessage = (SystemMessage)abstractMessage;
+                        if (systemMessage.getTypeMessage().equals("REFRESH")){
+                            refreshServerFilesList(systemMessage.getPathsList());
+                        }
                     }
                 }
             }catch (ClassNotFoundException | IOException e){
@@ -79,6 +90,9 @@ public class Controller implements Initializable {
     public void work(){
         lvClientFilesList.getItems().clear();
         refreshClientFilesList(currentClientPath);
+        requestRefreshServerFilesList(currentServerPath);
+
+
         lvClientFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
@@ -89,7 +103,8 @@ public class Controller implements Initializable {
             if (event.getClickCount() == 2) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
                 if (filename.equals("[..]")){
-                    refreshClientFilesList(Paths.get(currentClientPath).getParent().toString());
+                    currentClientPath = Paths.get(currentClientPath).getParent().toString();
+                    refreshClientFilesList(currentClientPath);
                 }
                 if (Files.isDirectory(Paths.get(currentClientPath+"/"+filename),LinkOption.NOFOLLOW_LINKS)){
                     currentClientPath+="/"+filename;
@@ -100,41 +115,51 @@ public class Controller implements Initializable {
         });
     }
 
-//    public void refreshLocalFilesList() {
-//        if (Platform.isFxApplicationThread()) {
-//            try {
-//                lvClientFilesList.getItems().clear();
-//                Files.list(Paths.get("client_storage")).map(p -> p.getFileName().toString()).forEach(o -> lvClientFilesList.getItems().add(o));
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        } else {
-//            Platform.runLater(() -> {
-//                try {
-//                    lvClientFilesList.getItems().clear();
-//                    Files.list(Paths.get("client_storage")).map(p -> p.getFileName().toString()).forEach(o -> lvClientFilesList.getItems().add(o));
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-//            });
-//        }
-//    }
-
     public void refreshClientFilesList(String directoryName){
+        if (Platform.isFxApplicationThread()) {
+            refreshCFL(directoryName);
+        }else {
+            Platform.runLater(() -> {
+                refreshCFL(directoryName);
+            });
+        }
+    }
+
+    public void refreshCFL(String directoryName){
         lvClientFilesList.getItems().clear();
-        if (!currentClientPath.equals("client_storage")){
+        if (!currentClientPath.equals(rootClientPath)){
             lvClientFilesList.getItems().add("[..]");
         }
         try {
-            for (Path p:newDirectoryStream(Paths.get(directoryName))) {
-                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)){
-                    lvClientFilesList.getItems().add(p.getName(p.getNameCount()-1).toString());
-                }else {
-                    lvClientFilesList.getItems().add(p.getFileName().toString());
-                }
-            }
+            Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    public String getNameFromPath(Path path){
+        return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) ? path.getName((path.getNameCount()-1)).toString() : path.getFileName().toString();
+    }
+
+    public void requestRefreshServerFilesList(String directoryName){
+        LinkedList<String> linkedList = new LinkedList<>();
+        linkedList.add(Paths.get(directoryName).toString());
+        SystemMessage systemMessage = new SystemMessage();
+        systemMessage.setTypeMessage("REFRESH").setPathsList(linkedList);
+        if (Network.sendMessage(systemMessage)){
+            System.out.println("отправлено");
+        }else {
+            System.out.println("Не отправлено");
+        }
+    }
+
+    public void refreshServerFilesList(LinkedList<String> linkedList){
+        if (Platform.isFxApplicationThread()) {
+            linkedList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
+        }else {
+            Platform.runLater(() -> {
+                linkedList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
+            });
         }
     }
 
@@ -155,18 +180,24 @@ public class Controller implements Initializable {
         setAuthenticated(true);
     }
 
-    public void send(ActionEvent actionEvent) {
-        try {
-            FileMessage fileMessage = new FileMessage(Paths.get("client_storage/" + tfFilename.getText()));
-            if (Network.sendMessage(fileMessage)){
-                System.out.println("отправлено");
+    public void sendFile() {
+        if (Files.exists(Paths.get(currentClientPath + "/" + tfFilename.getText()))){
+            try {
+                FileMessage fileMessage = new FileMessage(Paths.get(currentClientPath + "/" + tfFilename.getText()));
+                if (Network.sendMessage(fileMessage)){
+                    System.out.println("отправлено");
+                }else {
+                    System.out.println("Не отправлено");
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
-    public void receive(ActionEvent actionEvent) {
+
+
+    public void receiveFile(ActionEvent actionEvent) {
         refreshClientFilesList(currentClientPath);
     }
 }
