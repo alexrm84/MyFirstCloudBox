@@ -1,5 +1,6 @@
 package alexrm84.myFirstCloudBox.server;
 
+import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -50,15 +51,22 @@ public class Server {
         new Server().run();
     }
 
-    public static LinkedList<String> refreshFiles(String path){
+    public static void refreshFiles(SystemMessage systemMessage){
         LinkedList<String> filesList = new LinkedList<>();
         try {
-            Files.list(Paths.get(path)).forEach(p->filesList.add(p.toString()));
+            Files.list(Paths.get(systemMessage.getPathsList().peek())).forEach(p->filesList.add(p.toString()));
         } catch (IOException e) {
             e.printStackTrace();
         }
         System.out.println(filesList);
-        return filesList;
+        systemMessage.setPathsList(filesList);
     }
 
+    public static void checkPath(SystemMessage systemMessage){
+        systemMessage.setIsPath(Files.isDirectory(Paths.get(systemMessage.getPathsList().peek())));
+        if (systemMessage.isPath()){
+            systemMessage.setCurrentServerPath(systemMessage.getPathsList().peek());
+            refreshFiles(systemMessage);
+        }
+    }
 }

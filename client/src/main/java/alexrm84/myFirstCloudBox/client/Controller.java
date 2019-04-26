@@ -72,8 +72,13 @@ public class Controller implements Initializable {
                     }
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
-                        if (systemMessage.getTypeMessage().equals("REFRESH")){
-                            refreshServerFilesList(systemMessage.getPathsList());
+                        switch (systemMessage.getTypeMessage()){
+                            case "REFRESH" :
+                                refreshServerFilesList(systemMessage.getPathsList());
+                                break;
+                            case "CheckPath":
+                                checkServerPathResult(systemMessage);
+                                break;
                         }
                     }
                 }
@@ -90,9 +95,12 @@ public class Controller implements Initializable {
     public void work(){
         lvClientFilesList.getItems().clear();
         refreshClientFilesList(currentClientPath);
+        lvServerFilesList.getItems().clear();
         requestRefreshServerFilesList(currentServerPath);
+        storageNavigation();
+    }
 
-
+    public void storageNavigation(){
         lvClientFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
@@ -102,15 +110,35 @@ public class Controller implements Initializable {
             }
             if (event.getClickCount() == 2) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
+                if (filename == null){return;}
                 if (filename.equals("[..]")){
                     currentClientPath = Paths.get(currentClientPath).getParent().toString();
                     refreshClientFilesList(currentClientPath);
                 }
                 if (Files.isDirectory(Paths.get(currentClientPath+"/"+filename),LinkOption.NOFOLLOW_LINKS)){
-                    currentClientPath+="/"+filename;
+                    currentClientPath += "/"+filename;
                     refreshClientFilesList(currentClientPath);
                 }
 
+            }
+        });
+
+        lvServerFilesList.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 1) {
+                String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
+                tfFilename.setText(filename);
+                tfFilename.requestFocus();
+                tfFilename.selectEnd();
+            }
+            if (event.getClickCount() == 2) {
+                String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
+                if (filename == null){return;}
+                if (filename.equals("[..]")){
+                    currentServerPath = Paths.get(currentServerPath).getParent().toString();
+                    requestRefreshServerFilesList(currentServerPath);
+                    return;
+                }
+                checkServerPath(currentServerPath+"/"+filename);
             }
         });
     }
@@ -153,15 +181,43 @@ public class Controller implements Initializable {
         }
     }
 
-    public void refreshServerFilesList(LinkedList<String> linkedList){
+    public void refreshServerFilesList(LinkedList<String> pathList){
         if (Platform.isFxApplicationThread()) {
-            linkedList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
+            lvServerFilesList.getItems().clear();
+            if (!currentServerPath.equals(rootServerPath)){
+                lvServerFilesList.getItems().add("[..]");
+            }
+            pathList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
         }else {
             Platform.runLater(() -> {
-                linkedList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
+                lvServerFilesList.getItems().clear();
+                if (!currentServerPath.equals(rootServerPath)){
+                    lvServerFilesList.getItems().add("[..]");
+                }
+                pathList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
             });
         }
     }
+
+    public void checkServerPath(String directoryName){
+        LinkedList<String> linkedList = new LinkedList<>();
+        linkedList.add(Paths.get(directoryName).toString());
+        SystemMessage systemMessage = new SystemMessage();
+        systemMessage.setTypeMessage("CheckPath").setPathsList(linkedList);
+        if (Network.sendMessage(systemMessage)){
+            System.out.println("отправлено");
+        }else {
+            System.out.println("Не отправлено");
+        }
+    }
+
+    public void checkServerPathResult(SystemMessage systemMessage){
+        if (systemMessage.isPath()){
+            currentServerPath = systemMessage.getCurrentServerPath();
+            refreshServerFilesList(systemMessage.getPathsList());
+        }
+    }
+
 
     public void getDirectoryContentsToCopy(String directoryName, LinkedList<File> files) {
         File directory = new File(directoryName);

@@ -22,7 +22,14 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
             }
             if (msg instanceof SystemMessage){
                 SystemMessage systemMessage = (SystemMessage)msg;
-                systemMessage.setPathsList(Server.refreshFiles(systemMessage.getPathsList().peek()));
+                switch (systemMessage.getTypeMessage()){
+                    case "REFRESH" :
+                        Server.refreshFiles(systemMessage);
+                        break;
+                    case "CheckPath":
+                        Server.checkPath(systemMessage);
+                        break;
+                }
                 ctx.writeAndFlush(systemMessage);
             }
             if (msg instanceof FileMessage){

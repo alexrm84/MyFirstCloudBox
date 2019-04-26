@@ -2,14 +2,15 @@ package alexrm84.myFirstCloudBox.common;
 
 import lombok.Getter;
 
-import java.nio.file.Path;
 import java.util.LinkedList;
 
 @Getter
 public class SystemMessage extends AbstractMessage {
-    private String typeMessage;
-    private LinkedList<String> pathsList;
     private boolean connectionIsAlive;
+    private boolean isPath;
+    private String typeMessage;
+    private String currentServerPath, currentClientPath;
+    private LinkedList<String> pathsList;
 
     public SystemMessage setTypeMessage(String typeMessage) {
         this.typeMessage = typeMessage;
@@ -23,6 +24,21 @@ public class SystemMessage extends AbstractMessage {
 
     public SystemMessage setConnectionIsAlive(boolean connectionIsAlive) {
         this.connectionIsAlive = connectionIsAlive;
+        return this;
+    }
+
+    public SystemMessage setIsPath(boolean isPath) {
+        this.isPath = isPath;
+        return this;
+    }
+
+    public SystemMessage setCurrentServerPath(String currentServerPath) {
+        this.currentServerPath = currentServerPath;
+        return this;
+    }
+
+    public SystemMessage setCurrentClientPath(String currentClientPath) {
+        this.currentClientPath = currentClientPath;
         return this;
     }
 }
