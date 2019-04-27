@@ -1,11 +1,9 @@
 package alexrm84.myFirstCloudBox.server;
 
+import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -14,12 +12,14 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.LinkedList;
 
+import static java.nio.file.Files.newDirectoryStream;
+
 public class Server {
+
+//    private static String pathStorage = "server_storage\\";
 
     public void run() throws Exception {
         EventLoopGroup mainGroup = new NioEventLoopGroup();
@@ -67,6 +67,51 @@ public class Server {
         if (systemMessage.isPath()){
             systemMessage.setCurrentServerPath(systemMessage.getPathsList().peek());
             refreshFiles(systemMessage);
+        }
+    }
+
+    public static void writeFile(FileMessage fileMessage){
+        Path path = Paths.get(fileMessage.getCurrentDestinationPath() + "\\" + fileMessage.getFilePath());
+        try {
+            if (!fileMessage.isFile()){
+                Files.createDirectories(path);
+            }else {
+                Files.createDirectories(path.getParent());
+                Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void getPathContentsToCopy(Path path, LinkedList<Path> filesList) {
+        try (DirectoryStream<Path> directoryStream = newDirectoryStream(path)) {
+            for (Path p : directoryStream) {
+                filesList.add(p);
+                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
+                    getPathContentsToCopy(p, filesList);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void sendFiles(ChannelHandlerContext ctx, SystemMessage systemMessage) {
+        LinkedList<Path> filesList = new LinkedList<>();
+        Path path = Paths.get(systemMessage.getPathsList().peek());
+        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+            filesList.add(path);
+        }else {
+            getPathContentsToCopy(path,filesList);
+        }
+        for (Path p:filesList) {
+            try {
+                FileMessage fileMessage = new FileMessage(p, p.subpath(path.getNameCount()-1,p.getNameCount()).toString(), systemMessage.getCurrentClientPath());
+                ctx.writeAndFlush(fileMessage);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

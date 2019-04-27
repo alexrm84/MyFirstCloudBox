@@ -7,10 +7,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
 
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.LinkedList;
 
 public class DistributorHandler extends ChannelInboundHandlerAdapter {
 
@@ -29,13 +27,19 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                     case "CheckPath":
                         Server.checkPath(systemMessage);
                         break;
+                    case "ReceiveFiles":
+                        Server.sendFiles(ctx, systemMessage);
+                        break;
                 }
                 ctx.writeAndFlush(systemMessage);
             }
             if (msg instanceof FileMessage){
                 FileMessage fileMessage = (FileMessage)msg;
-//                System.out.println();
-                Files.write(Paths.get("server_storage/" + fileMessage.getFilename()),fileMessage.getData(), StandardOpenOption.CREATE);
+                Server.writeFile(fileMessage);
+                SystemMessage systemMessage = new SystemMessage();
+                systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(fileMessage.getCurrentDestinationPath())));
+                Server.refreshFiles(systemMessage);
+                ctx.writeAndFlush(systemMessage);
             }
         }finally {
             ReferenceCountUtil.release(msg);

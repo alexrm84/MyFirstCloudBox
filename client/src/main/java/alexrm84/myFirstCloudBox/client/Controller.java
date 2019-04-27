@@ -11,10 +11,10 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import lombok.Data;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.*;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.ResourceBundle;
 
@@ -33,9 +33,10 @@ public class Controller implements Initializable {
     ListView<String> lvServerFilesList, lvClientFilesList;
 
     private boolean authenticated;
-    private String nickname;
-    private String rootClientPath, rootServerPath;
+    private String username;
     private String currentClientPath, currentServerPath;
+    private String rootClientPath, rootServerPath;
+//    private String pathClientStorage, pathServerStorage;
 
     public void setAuthenticated(boolean authenticated) {
         this.authenticated = authenticated;
@@ -44,22 +45,37 @@ public class Controller implements Initializable {
         hbControlPanel.setVisible(authenticated);
         hbControlPanel.setManaged(authenticated);
         if (!authenticated) {
-            nickname = "";
+            username = "";
             lvClientFilesList.getItems().clear();
             lvServerFilesList.getItems().clear();
         }else {
             work();
         }
+    }
 
+    public void work(){
+        lvClientFilesList.getItems().clear();
+        refreshClientFilesList(currentClientPath);
+        lvServerFilesList.getItems().clear();
+        requestRefreshServerFilesList(currentServerPath);
+        storageNavigation();
+    }
+
+    public void authorization() {
+//Добавить получение настроек из БД
+//        pathClientStorage = "client_storage\\";
+        username = "user1";
+
+        rootClientPath = "client_storage\\" + username;
+        currentClientPath = rootClientPath;
+        rootServerPath = "server_storage\\" + username;
+        currentServerPath = rootServerPath;
+        setAuthenticated(true);
     }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         setAuthenticated(false);
-        rootClientPath = "client_storage";
-        currentClientPath = rootClientPath;
-        rootServerPath = "server_storage";
-        currentServerPath = rootServerPath;
         Network.start();
         Thread thread = new Thread(()->{
             try {
@@ -67,8 +83,7 @@ public class Controller implements Initializable {
                     AbstractMessage abstractMessage = Network.readObject();
                     if (abstractMessage instanceof FileMessage){
                         FileMessage fileMessage = (FileMessage)abstractMessage;
-                        Files.write(Paths.get("client_storage/" + fileMessage.getFilename()),fileMessage.getData(), StandardOpenOption.CREATE);
-//                        refreshFilesList("client_storage");
+                        writeFile(fileMessage);
                     }
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
@@ -92,21 +107,16 @@ public class Controller implements Initializable {
         thread.start();
     }
 
-    public void work(){
-        lvClientFilesList.getItems().clear();
-        refreshClientFilesList(currentClientPath);
-        lvServerFilesList.getItems().clear();
-        requestRefreshServerFilesList(currentServerPath);
-        storageNavigation();
-    }
+
 
     public void storageNavigation(){
         lvClientFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-                tfFilename.setText(filename);
-                tfFilename.requestFocus();
-                tfFilename.selectEnd();
+                if (!filename.equals("[..]") && filename!=null){
+                    tfFilename.setText(filename);
+                    tfFilename.selectEnd();
+                }
             }
             if (event.getClickCount() == 2) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
@@ -115,8 +125,8 @@ public class Controller implements Initializable {
                     currentClientPath = Paths.get(currentClientPath).getParent().toString();
                     refreshClientFilesList(currentClientPath);
                 }
-                if (Files.isDirectory(Paths.get(currentClientPath+"/"+filename),LinkOption.NOFOLLOW_LINKS)){
-                    currentClientPath += "/"+filename;
+                if (Files.isDirectory(Paths.get(currentClientPath+"\\"+filename),LinkOption.NOFOLLOW_LINKS)){
+                    currentClientPath += "\\"+filename;
                     refreshClientFilesList(currentClientPath);
                 }
 
@@ -126,9 +136,10 @@ public class Controller implements Initializable {
         lvServerFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
-                tfFilename.setText(filename);
-                tfFilename.requestFocus();
-                tfFilename.selectEnd();
+                if (!filename.equals("[..]") && filename!=null){
+                    tfFilename.setText(filename);
+                    tfFilename.selectEnd();
+                }
             }
             if (event.getClickCount() == 2) {
                 String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
@@ -138,7 +149,7 @@ public class Controller implements Initializable {
                     requestRefreshServerFilesList(currentServerPath);
                     return;
                 }
-                checkServerPath(currentServerPath+"/"+filename);
+                checkServerPath(currentServerPath+"\\"+filename);
             }
         });
     }
@@ -170,12 +181,10 @@ public class Controller implements Initializable {
     }
 
     public void requestRefreshServerFilesList(String directoryName){
-        LinkedList<String> linkedList = new LinkedList<>();
-        linkedList.add(Paths.get(directoryName).toString());
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("REFRESH").setPathsList(linkedList);
+        systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
         if (Network.sendMessage(systemMessage)){
-            System.out.println("отправлено");
+            System.out.println("Отправлено");
         }else {
             System.out.println("Не отправлено");
         }
@@ -200,12 +209,10 @@ public class Controller implements Initializable {
     }
 
     public void checkServerPath(String directoryName){
-        LinkedList<String> linkedList = new LinkedList<>();
-        linkedList.add(Paths.get(directoryName).toString());
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("CheckPath").setPathsList(linkedList);
+        systemMessage.setTypeMessage("CheckPath").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
         if (Network.sendMessage(systemMessage)){
-            System.out.println("отправлено");
+            System.out.println("Отправлено");
         }else {
             System.out.println("Не отправлено");
         }
@@ -218,32 +225,34 @@ public class Controller implements Initializable {
         }
     }
 
-
-    public void getDirectoryContentsToCopy(String directoryName, LinkedList<File> files) {
-        File directory = new File(directoryName);
-        File[] fList = directory.listFiles();
-        for (File file : fList) {
-            if (file.isFile()) {
-                files.add(file);
-            } else if (file.isDirectory()) {
-                getDirectoryContentsToCopy(file.getAbsolutePath(), files);
+    public void getPathContentsToCopy(Path path, LinkedList<Path> filesList) {
+        try (DirectoryStream<Path> directoryStream = newDirectoryStream(path)) {
+            for (Path p : directoryStream) {
+                filesList.add(p);
+                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
+                    getPathContentsToCopy(p, filesList);
+                }
             }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-
-    public void authorization(ActionEvent actionEvent) {
-        setAuthenticated(true);
-    }
-
-    public void sendFile() {
-        if (Files.exists(Paths.get(currentClientPath + "/" + tfFilename.getText()))){
+    public void sendFiles() {
+        LinkedList<Path> filesList = new LinkedList<>();
+        Path path = Paths.get(currentClientPath + "\\" + tfFilename.getText());
+        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+            filesList.add(path);
+        }else {
+            getPathContentsToCopy(path,filesList);
+        }
+        for (Path p:filesList) {
             try {
-                FileMessage fileMessage = new FileMessage(Paths.get(currentClientPath + "/" + tfFilename.getText()));
+                FileMessage fileMessage = new FileMessage(p, p.subpath(Paths.get(currentClientPath).getNameCount()-1,p.getNameCount()).toString(), currentServerPath);
                 if (Network.sendMessage(fileMessage)){
-                    System.out.println("отправлено");
+                    System.out.println("Отправлено: " + p);
                 }else {
-                    System.out.println("Не отправлено");
+                    System.out.println("Не отправлено: " + p);
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -251,9 +260,28 @@ public class Controller implements Initializable {
         }
     }
 
+    public void receiveFiles() {
+        SystemMessage systemMessage = new SystemMessage();
+        systemMessage.setTypeMessage("ReceiveFiles").setCurrentClientPath(currentClientPath).setPathsList(new LinkedList<>(Arrays.asList(currentServerPath + "\\" + tfFilename.getText())));
+        if (Network.sendMessage(systemMessage)){
+            System.out.println("Отправлено");
+        }else {
+            System.out.println("Не отправлено");
+        }
+    }
 
-
-    public void receiveFile(ActionEvent actionEvent) {
+    public void writeFile(FileMessage fileMessage){
+        Path path = Paths.get(fileMessage.getCurrentDestinationPath() + "\\" + fileMessage.getFilePath());
+        try {
+            if (!fileMessage.isFile()){
+                Files.createDirectories(path);
+            }else {
+                Files.createDirectories(path.getParent());
+                Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         refreshClientFilesList(currentClientPath);
     }
 }
