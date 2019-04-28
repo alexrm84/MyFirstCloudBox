@@ -7,12 +7,12 @@ import java.util.LinkedList;
 @Getter
 public class SystemMessage extends AbstractMessage {
     private boolean connectionIsAlive;
-    private String typeMessage;
+    private Command typeMessage;
     private String requestedPath;
     private String currentServerPath, currentClientPath;
     private LinkedList<String> pathsList;
 
-    public SystemMessage setTypeMessage(String typeMessage) {
+    public SystemMessage setTypeMessage(Command typeMessage) {
         this.typeMessage = typeMessage;
         return this;
     }

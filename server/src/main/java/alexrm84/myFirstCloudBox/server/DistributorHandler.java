@@ -1,6 +1,7 @@
 package alexrm84.myFirstCloudBox.server;
 
 
+import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
@@ -23,25 +24,23 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
             if (msg instanceof SystemMessage){
                 SystemMessage systemMessage = (SystemMessage)msg;
                 switch (systemMessage.getTypeMessage()){
-                    case "REFRESH" :
-                        worker.refreshFiles(systemMessage);
+                    case Refresh:
+                        ctx.writeAndFlush(systemMessage.setPathsList(worker.refreshFiles(systemMessage.getRequestedPath())));
                         break;
-                    case "CheckPath":
-                        worker.checkPath(systemMessage);
+                    case CheckPath:
+                        worker.checkPath(ctx, systemMessage);
                         break;
-                    case "ReceiveFiles":
-                        worker.sendFiles(ctx, systemMessage.getCurrentClientPath(), Paths.get(systemMessage.getPathsList().peek()));
+                    case ReceiveFiles:
+                        worker.sendFiles(ctx, systemMessage);
+                        break;
+                    case DeleteFiles:
+                        worker.deleteFiles(ctx, systemMessage);
                         break;
                 }
-                ctx.writeAndFlush(systemMessage);
             }
             if (msg instanceof FileMessage){
                 FileMessage fileMessage = (FileMessage)msg;
-                worker.writeFile(fileMessage);
-                SystemMessage systemMessage = new SystemMessage();
-                systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(fileMessage.getDestinationPath())));
-                worker.refreshFiles(systemMessage);
-                ctx.writeAndFlush(systemMessage);
+                worker.writeFile(ctx, fileMessage);
             }
         }finally {
             ReferenceCountUtil.release(msg);

@@ -1,6 +1,7 @@
 package alexrm84.myFirstCloudBox.client;
 
 import alexrm84.myFirstCloudBox.common.AbstractMessage;
+import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import javafx.application.Platform;
@@ -10,14 +11,17 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import lombok.Data;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.*;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.ResourceBundle;
 
 import static java.nio.file.Files.newDirectoryStream;
+import static java.nio.file.Files.setOwner;
 
 @Data
 public class Controller implements Initializable {
@@ -26,7 +30,10 @@ public class Controller implements Initializable {
     HBox hbAuthPanel, hbControlPanel;
 
     @FXML
-    TextField tfLogin, pfPassword, tfFilename;
+    TextField tfLogin, tfPassword, tfFilename;
+
+//    @FXML
+//    TextArea taFilename;
 
     @FXML
     ListView<String> lvServerFilesList, lvClientFilesList;
@@ -35,7 +42,11 @@ public class Controller implements Initializable {
     private String username;
     private String currentClientPath, currentServerPath;
     private String rootClientPath, rootServerPath;
+    private String currentSelectionInListView;
+    private SelectedListView selectedListView;
 //    private String pathClientStorage, pathServerStorage;
+
+    private enum SelectedListView {ServerList, ClientList}
 
     public void setAuthenticated(boolean authenticated) {
         this.authenticated = authenticated;
@@ -87,10 +98,10 @@ public class Controller implements Initializable {
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
                         switch (systemMessage.getTypeMessage()){
-                            case "REFRESH" :
+                            case Refresh:
                                 refreshServerFilesList(systemMessage.getPathsList());
                                 break;
-                            case "CheckPath":
+                            case CheckPath:
                                 checkServerPathResult(systemMessage);
                                 break;
                         }
@@ -112,13 +123,13 @@ public class Controller implements Initializable {
         lvClientFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-                if (!filename.equals("[..]") && filename!=null){
-                    tfFilename.setText(filename);
-                    tfFilename.selectEnd();
-                }
+                currentSelectionInListView = filename;
+                selectedListView = SelectedListView.ClientList;
             }
             if (event.getClickCount() == 2) {
                 String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
+                currentSelectionInListView = filename;
+                selectedListView = SelectedListView.ClientList;
                 if (filename == null){return;}
                 if (filename.equals("[..]")){
                     currentClientPath = Paths.get(currentClientPath).getParent().toString();
@@ -135,13 +146,13 @@ public class Controller implements Initializable {
         lvServerFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
                 String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
-                if (!filename.equals("[..]") && filename!=null){
-                    tfFilename.setText(filename);
-                    tfFilename.selectEnd();
-                }
+                currentSelectionInListView = filename;
+                selectedListView = SelectedListView.ServerList;
             }
             if (event.getClickCount() == 2) {
                 String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
+                currentSelectionInListView = filename;
+                selectedListView = SelectedListView.ServerList;
                 if (filename == null){return;}
                 if (filename.equals("[..]")){
                     currentServerPath = Paths.get(currentServerPath).getParent().toString();
@@ -183,9 +194,9 @@ public class Controller implements Initializable {
     }
 
 //Запрос обновления серверного листа
-    public void requestRefreshServerFilesList(String directoryName){
+    private void requestRefreshServerFilesList(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("REFRESH").setRequestedPath(directoryName);
+        systemMessage.setTypeMessage(Command.Refresh).setRequestedPath(directoryName);
         if (Network.sendMessage(systemMessage)){
             System.out.println("Отправлено");
         }else {
@@ -194,7 +205,7 @@ public class Controller implements Initializable {
     }
 
 //Обновление серверного листа
-    public void refreshServerFilesList(LinkedList<String> pathList){
+    private void refreshServerFilesList(LinkedList<String> pathList){
         if (Platform.isFxApplicationThread()) {
             lvServerFilesList.getItems().clear();
             if (!currentServerPath.equals(rootServerPath)){
@@ -213,9 +224,9 @@ public class Controller implements Initializable {
     }
 
 //Навигайия по серверному листу (запрос)
-    public void checkServerPath(String directoryName){
+    private void checkServerPath(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("CheckPath").setRequestedPath(directoryName);
+        systemMessage.setTypeMessage(Command.CheckPath).setRequestedPath(directoryName);
         if (Network.sendMessage(systemMessage)){
             System.out.println("Отправлено");
         }else {
@@ -224,7 +235,7 @@ public class Controller implements Initializable {
     }
 
 //Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
-    public void checkServerPathResult(SystemMessage systemMessage){
+    private void checkServerPathResult(SystemMessage systemMessage){
         if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
             currentServerPath = systemMessage.getCurrentServerPath();
             refreshServerFilesList(systemMessage.getPathsList());
@@ -232,30 +243,10 @@ public class Controller implements Initializable {
     }
 
 //Отправка файла/каталога, стартовый метод
-    public void sendFiles() {
-        Path path = Paths.get(currentClientPath + "\\" + tfFilename.getText());
-        send(path);
-        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)){
-            sendCatalog(path);
-        }
-//        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
-//            send(path);
-//        }else {
-//            sendCatalog(path);
-//        }
-    }
-
-//Отправка каталога с сроходом по детереву каталога
-    private void sendCatalog(Path path) {
-        try (DirectoryStream<Path> directoryStream = newDirectoryStream(path)) {
-            for (Path p : directoryStream) {
-                if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)){
-                    send(p);
-                }else{
-                    send(p);
-                    sendCatalog(p);
-                }
-            }
+    public void sendFiles(){
+        Path path = Paths.get(currentClientPath + "\\" + currentSelectionInListView);
+        try {
+            Files.walk(path).sorted(Comparator.naturalOrder()).forEach(p -> send(p));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -276,9 +267,10 @@ public class Controller implements Initializable {
 
 //Запрос загрузки файсла/каталога с сервера
     public void receiveFiles() {
-        SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("ReceiveFiles").setCurrentClientPath(currentClientPath).setPathsList(new LinkedList<>(Arrays.asList(currentServerPath + "\\" + tfFilename.getText())));
-        if (Network.sendMessage(systemMessage)){
+        if (Network.sendMessage(new SystemMessage()
+                .setTypeMessage(Command.ReceiveFiles)
+                .setCurrentClientPath(currentClientPath)
+                .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView))){
             System.out.println("Отправлено");
         }else {
             System.out.println("Не отправлено");
@@ -286,7 +278,7 @@ public class Controller implements Initializable {
     }
 
 //Запись файлов
-    public void writeFile(FileMessage fileMessage){
+    private void writeFile(FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getDestinationPath() + "\\" + fileMessage.getFilePath());
         try {
             if (Files.isRegularFile(path)) {
@@ -298,5 +290,31 @@ public class Controller implements Initializable {
             e.printStackTrace();
         }
         refreshClientFilesList(currentClientPath);
+    }
+
+    public void deleteFiles() {
+        if (selectedListView.equals(SelectedListView.ClientList)){
+            Path path = Paths.get(currentClientPath + "\\" + currentSelectionInListView);
+            try {
+                Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            refreshClientFilesList(currentClientPath);
+        }else {
+            if (Network.sendMessage(new SystemMessage()
+                    .setTypeMessage(Command.DeleteFiles)
+                    .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView))){
+                System.out.println("Отправлено" );
+            }else {
+                System.out.println("Не отправлено");
+            }
+        }
     }
 }

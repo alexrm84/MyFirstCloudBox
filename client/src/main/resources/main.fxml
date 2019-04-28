@@ -6,7 +6,9 @@
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.PasswordField?>
 
-<VBox style="-fx-background-color: linear-gradient(#fff 0%, #eee 10%, #ddd 90%, #bbb 100%);"  fx:controller="alexrm84.myFirstCloudBox.client.Controller" xmlns:fx="http://javafx.com/fxml" alignment="center">
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<VBox style="-fx-background-color: linear-gradient(#fff 0%, #eee 10%, #ddd 90%, #bbb 100%);" fx:controller="alexrm84.myFirstCloudBox.client.Controller" xmlns:fx="http://javafx.com/fxml" alignment="center">
 
     <HBox visible="true">
         <ListView fx:id="lvClientFilesList" HBox.hgrow="ALWAYS"/>
@@ -15,14 +17,15 @@
 
     <HBox fx:id="hbAuthPanel">
         <TextField fx:id="tfLogin" promptText="Введите логин" HBox.hgrow="ALWAYS"/>
-        <PasswordField fx:id="pfPassword" promptText="Введите пароль" HBox.hgrow="ALWAYS"/>
+        <PasswordField fx:id="tfPassword" promptText="Введите пароль" HBox.hgrow="ALWAYS"/>
         <Button onAction="#authorization" text="Авторизоваться"/>
     </HBox>
 
     <HBox fx:id="hbControlPanel">
-        <TextField fx:id="tfFilename" promptText="Имя файла" HBox.hgrow="ALWAYS"/>
+        <!--<TextField fx:id="tfFilename" promptText="Имя файла" HBox.hgrow="ALWAYS" />-->
         <Button onAction="#sendFiles" text="Отправить"/>
         <Button onAction="#receiveFiles" text="Получить"/>
+        <Button onAction="#deleteFiles" text="Удалить"/>
     </HBox>
 
 </VBox>
