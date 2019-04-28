@@ -3,7 +3,6 @@ package alexrm84.myFirstCloudBox.client;
 import alexrm84.myFirstCloudBox.common.AbstractMessage;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
-import io.netty.channel.ChannelHandlerContext;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -186,7 +185,7 @@ public class Controller implements Initializable {
 //Запрос обновления серверного листа
     public void requestRefreshServerFilesList(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
+        systemMessage.setTypeMessage("REFRESH").setRequestedPath(directoryName);
         if (Network.sendMessage(systemMessage)){
             System.out.println("Отправлено");
         }else {
@@ -216,7 +215,7 @@ public class Controller implements Initializable {
 //Навигайия по серверному листу (запрос)
     public void checkServerPath(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage("CheckPath").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
+        systemMessage.setTypeMessage("CheckPath").setRequestedPath(directoryName);
         if (Network.sendMessage(systemMessage)){
             System.out.println("Отправлено");
         }else {
@@ -226,7 +225,7 @@ public class Controller implements Initializable {
 
 //Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
     public void checkServerPathResult(SystemMessage systemMessage){
-        if (systemMessage.isPath()){
+        if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
             currentServerPath = systemMessage.getCurrentServerPath();
             refreshServerFilesList(systemMessage.getPathsList());
         }
@@ -235,11 +234,15 @@ public class Controller implements Initializable {
 //Отправка файла/каталога, стартовый метод
     public void sendFiles() {
         Path path = Paths.get(currentClientPath + "\\" + tfFilename.getText());
-        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
-            send(path);
-        }else {
+        send(path);
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)){
             sendCatalog(path);
         }
+//        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+//            send(path);
+//        }else {
+//            sendCatalog(path);
+//        }
     }
 
 //Отправка каталога с сроходом по детереву каталога
@@ -284,13 +287,12 @@ public class Controller implements Initializable {
 
 //Запись файлов
     public void writeFile(FileMessage fileMessage){
-        Path path = Paths.get(fileMessage.getCurrentDestinationPath() + "\\" + fileMessage.getFilePath());
+        Path path = Paths.get(fileMessage.getDestinationPath() + "\\" + fileMessage.getFilePath());
         try {
-            if (!fileMessage.isFile()){
-                Files.createDirectories(path);
-            }else {
-                Files.createDirectories(path.getParent());
+            if (Files.isRegularFile(path)) {
                 Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
+            }else {
+                Files.createDirectories(path);
             }
         } catch (IOException e) {
             e.printStackTrace();

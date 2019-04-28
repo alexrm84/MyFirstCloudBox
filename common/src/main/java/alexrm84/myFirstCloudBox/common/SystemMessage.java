@@ -7,8 +7,8 @@ import java.util.LinkedList;
 @Getter
 public class SystemMessage extends AbstractMessage {
     private boolean connectionIsAlive;
-    private boolean isPath;
     private String typeMessage;
+    private String requestedPath;
     private String currentServerPath, currentClientPath;
     private LinkedList<String> pathsList;
 
@@ -27,11 +27,6 @@ public class SystemMessage extends AbstractMessage {
         return this;
     }
 
-    public SystemMessage setIsPath(boolean isPath) {
-        this.isPath = isPath;
-        return this;
-    }
-
     public SystemMessage setCurrentServerPath(String currentServerPath) {
         this.currentServerPath = currentServerPath;
         return this;
@@ -39,6 +34,11 @@ public class SystemMessage extends AbstractMessage {
 
     public SystemMessage setCurrentClientPath(String currentClientPath) {
         this.currentClientPath = currentClientPath;
+        return this;
+    }
+
+    public SystemMessage setRequestedPath(String requestedPath) {
+        this.requestedPath = requestedPath;
         return this;
     }
 }

@@ -8,16 +8,15 @@ import java.nio.file.Path;
 
 @Getter
 public class FileMessage extends AbstractMessage {
-    private boolean isFile;
     private String filePath;
     private byte[] data;
     private String filename;
-    private String currentDestinationPath;
+    private String destinationPath;
 
-    public FileMessage(Path path, String filePath, String currentDestinationPath) throws IOException {
+    public FileMessage(Path path, String filePath, String destinationPath) throws IOException {
         this.filePath = filePath;
-        this.currentDestinationPath = currentDestinationPath;
-        if (isFile = Files.isRegularFile(path)){
+        this.destinationPath = destinationPath;
+        if (Files.isRegularFile(path)){
             this.filename = path.getFileName().toString();
             this.data = Files.readAllBytes(path);
         }

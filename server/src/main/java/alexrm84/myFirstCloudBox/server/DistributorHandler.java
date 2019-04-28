@@ -15,6 +15,7 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        Worker worker = new Worker(ctx);
         try {
             if (msg == null){
                 return;
@@ -23,23 +24,23 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                 SystemMessage systemMessage = (SystemMessage)msg;
                 switch (systemMessage.getTypeMessage()){
                     case "REFRESH" :
-                        Server.refreshFiles(systemMessage);
+                        worker.refreshFiles(systemMessage);
                         break;
                     case "CheckPath":
-                        Server.checkPath(systemMessage);
+                        worker.checkPath(systemMessage);
                         break;
                     case "ReceiveFiles":
-                        Server.sendFiles(ctx, systemMessage.getCurrentClientPath(), Paths.get(systemMessage.getPathsList().peek()));
+                        worker.sendFiles(ctx, systemMessage.getCurrentClientPath(), Paths.get(systemMessage.getPathsList().peek()));
                         break;
                 }
                 ctx.writeAndFlush(systemMessage);
             }
             if (msg instanceof FileMessage){
                 FileMessage fileMessage = (FileMessage)msg;
-                Server.writeFile(fileMessage);
+                worker.writeFile(fileMessage);
                 SystemMessage systemMessage = new SystemMessage();
-                systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(fileMessage.getCurrentDestinationPath())));
-                Server.refreshFiles(systemMessage);
+                systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(fileMessage.getDestinationPath())));
+                worker.refreshFiles(systemMessage);
                 ctx.writeAndFlush(systemMessage);
             }
         }finally {
