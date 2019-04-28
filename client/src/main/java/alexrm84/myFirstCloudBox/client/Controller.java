@@ -3,8 +3,8 @@ package alexrm84.myFirstCloudBox.client;
 import alexrm84.myFirstCloudBox.common.AbstractMessage;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
+import io.netty.channel.ChannelHandlerContext;
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -107,7 +107,7 @@ public class Controller implements Initializable {
         thread.start();
     }
 
-
+//Навигация по листам.
 
     public void storageNavigation(){
         lvClientFilesList.setOnMouseClicked(event -> {
@@ -154,7 +154,8 @@ public class Controller implements Initializable {
         });
     }
 
-    public void refreshClientFilesList(String directoryName){
+//Обновление клиентского листа
+    private void refreshClientFilesList(String directoryName){
         if (Platform.isFxApplicationThread()) {
             refreshCFL(directoryName);
         }else {
@@ -164,7 +165,8 @@ public class Controller implements Initializable {
         }
     }
 
-    public void refreshCFL(String directoryName){
+//Обновление клиентского листа 2
+    private void refreshCFL(String directoryName){
         lvClientFilesList.getItems().clear();
         if (!currentClientPath.equals(rootClientPath)){
             lvClientFilesList.getItems().add("[..]");
@@ -176,10 +178,12 @@ public class Controller implements Initializable {
         }
     }
 
-    public String getNameFromPath(Path path){
+//Формотирование пути для вывода в листы только последней части
+    private String getNameFromPath(Path path){
         return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) ? path.getName((path.getNameCount()-1)).toString() : path.getFileName().toString();
     }
 
+//Запрос обновления серверного листа
     public void requestRefreshServerFilesList(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage("REFRESH").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
@@ -190,6 +194,7 @@ public class Controller implements Initializable {
         }
     }
 
+//Обновление серверного листа
     public void refreshServerFilesList(LinkedList<String> pathList){
         if (Platform.isFxApplicationThread()) {
             lvServerFilesList.getItems().clear();
@@ -208,6 +213,7 @@ public class Controller implements Initializable {
         }
     }
 
+//Навигайия по серверному листу (запрос)
     public void checkServerPath(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage("CheckPath").setPathsList(new LinkedList<>(Arrays.asList(directoryName)));
@@ -218,6 +224,7 @@ public class Controller implements Initializable {
         }
     }
 
+//Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
     public void checkServerPathResult(SystemMessage systemMessage){
         if (systemMessage.isPath()){
             currentServerPath = systemMessage.getCurrentServerPath();
@@ -225,12 +232,25 @@ public class Controller implements Initializable {
         }
     }
 
-    public void getPathContentsToCopy(Path path, LinkedList<Path> filesList) {
+//Отправка файла/каталога, стартовый метод
+    public void sendFiles() {
+        Path path = Paths.get(currentClientPath + "\\" + tfFilename.getText());
+        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+            send(path);
+        }else {
+            sendCatalog(path);
+        }
+    }
+
+//Отправка каталога с сроходом по детереву каталога
+    private void sendCatalog(Path path) {
         try (DirectoryStream<Path> directoryStream = newDirectoryStream(path)) {
             for (Path p : directoryStream) {
-                filesList.add(p);
-                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
-                    getPathContentsToCopy(p, filesList);
+                if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)){
+                    send(p);
+                }else{
+                    send(p);
+                    sendCatalog(p);
                 }
             }
         } catch (IOException e) {
@@ -238,28 +258,20 @@ public class Controller implements Initializable {
         }
     }
 
-    public void sendFiles() {
-        LinkedList<Path> filesList = new LinkedList<>();
-        Path path = Paths.get(currentClientPath + "\\" + tfFilename.getText());
-        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
-            filesList.add(path);
-        }else {
-            getPathContentsToCopy(path,filesList);
-        }
-        for (Path p:filesList) {
-            try {
-                FileMessage fileMessage = new FileMessage(p, p.subpath(Paths.get(currentClientPath).getNameCount()-1,p.getNameCount()).toString(), currentServerPath);
-                if (Network.sendMessage(fileMessage)){
-                    System.out.println("Отправлено: " + p);
-                }else {
-                    System.out.println("Не отправлено: " + p);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+//Непосредственно отправка (путь пересылайемого файла, путь относительно текущего каталога, путь назначения)
+    private void send(Path path){
+        try {
+            if (Network.sendMessage(new FileMessage(path, path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath))){
+                System.out.println("Отправлено: " + path);
+            }else {
+                System.out.println("Не отправлено: " + path);
             }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
+//Запрос загрузки файсла/каталога с сервера
     public void receiveFiles() {
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage("ReceiveFiles").setCurrentClientPath(currentClientPath).setPathsList(new LinkedList<>(Arrays.asList(currentServerPath + "\\" + tfFilename.getText())));
@@ -270,6 +282,7 @@ public class Controller implements Initializable {
         }
     }
 
+//Запись файлов
     public void writeFile(FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getCurrentDestinationPath() + "\\" + fileMessage.getFilePath());
         try {

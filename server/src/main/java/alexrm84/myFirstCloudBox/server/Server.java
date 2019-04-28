@@ -51,6 +51,7 @@ public class Server {
         new Server().run();
     }
 
+//Создание списка файлов на запрос обновления
     public static void refreshFiles(SystemMessage systemMessage){
         LinkedList<String> filesList = new LinkedList<>();
         try {
@@ -62,6 +63,7 @@ public class Server {
         systemMessage.setPathsList(filesList);
     }
 
+//формирование списка файлов при навигации по листу
     public static void checkPath(SystemMessage systemMessage){
         systemMessage.setIsPath(Files.isDirectory(Paths.get(systemMessage.getPathsList().peek())));
         if (systemMessage.isPath()){
@@ -70,6 +72,7 @@ public class Server {
         }
     }
 
+//Запись файлов
     public static void writeFile(FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getCurrentDestinationPath() + "\\" + fileMessage.getFilePath());
         try {
@@ -84,34 +87,30 @@ public class Server {
         }
     }
 
-    private static void getPathContentsToCopy(Path path, LinkedList<Path> filesList) {
+//Отправка файла/каталога с сроходом по детереву каталога
+    public static void sendFiles(ChannelHandlerContext ctx, String destinationPath, Path path) {
+        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+            send(ctx, destinationPath, path);
+            return;
+        }
         try (DirectoryStream<Path> directoryStream = newDirectoryStream(path)) {
             for (Path p : directoryStream) {
-                filesList.add(p);
-                if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
-                    getPathContentsToCopy(p, filesList);
+                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
+                    send(ctx, destinationPath, p);
+                }else{
+                    sendFiles(ctx, destinationPath, p);
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
-    public static void sendFiles(ChannelHandlerContext ctx, SystemMessage systemMessage) {
-        LinkedList<Path> filesList = new LinkedList<>();
-        Path path = Paths.get(systemMessage.getPathsList().peek());
-        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)){
-            filesList.add(path);
-        }else {
-            getPathContentsToCopy(path,filesList);
-        }
-        for (Path p:filesList) {
-            try {
-                FileMessage fileMessage = new FileMessage(p, p.subpath(path.getNameCount()-1,p.getNameCount()).toString(), systemMessage.getCurrentClientPath());
-                ctx.writeAndFlush(fileMessage);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    //Непосредственно отправка (путь пересылайемого файла, путь относительно текущего каталога, путь назначения)
+    private static void send(ChannelHandlerContext ctx, String destinationPath, Path path){
+        try {
+            ctx.writeAndFlush(new FileMessage(path, path.subpath(path.getNameCount()-1,path.getNameCount()).toString(), destinationPath));
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

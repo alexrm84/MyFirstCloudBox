@@ -7,6 +7,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
 
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
 
@@ -28,7 +29,7 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                         Server.checkPath(systemMessage);
                         break;
                     case "ReceiveFiles":
-                        Server.sendFiles(ctx, systemMessage);
+                        Server.sendFiles(ctx, systemMessage.getCurrentClientPath(), Paths.get(systemMessage.getPathsList().peek()));
                         break;
                 }
                 ctx.writeAndFlush(systemMessage);
