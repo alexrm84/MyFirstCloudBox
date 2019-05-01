@@ -16,7 +16,7 @@ public class Network {
         try {
             socket = new Socket("127.0.0.1", 9999);
             outputStream = new ObjectEncoderOutputStream(socket.getOutputStream());
-            inputStream = new ObjectDecoderInputStream(socket.getInputStream());
+            inputStream = new ObjectDecoderInputStream(socket.getInputStream(), 10*1024*1024);
         } catch (IOException e) {
             e.printStackTrace();
         }

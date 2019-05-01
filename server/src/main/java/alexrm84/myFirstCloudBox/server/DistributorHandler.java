@@ -1,16 +1,10 @@
 package alexrm84.myFirstCloudBox.server;
 
-
-import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
-
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.LinkedList;
 
 public class DistributorHandler extends ChannelInboundHandlerAdapter {
 
@@ -47,8 +41,6 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
         }
         super.channelRead(ctx, msg);
     }
-
-
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

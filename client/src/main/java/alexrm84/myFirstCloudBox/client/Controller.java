@@ -11,8 +11,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import lombok.Data;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URL;
 import java.nio.file.*;
 import java.util.Arrays;
@@ -20,8 +19,6 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.ResourceBundle;
 
-import static java.nio.file.Files.newDirectoryStream;
-import static java.nio.file.Files.setOwner;
 
 @Data
 public class Controller implements Initializable {
@@ -44,7 +41,6 @@ public class Controller implements Initializable {
     private String rootClientPath, rootServerPath;
     private String currentSelectionInListView;
     private SelectedListView selectedListView;
-//    private String pathClientStorage, pathServerStorage;
 
     private enum SelectedListView {ServerList, ClientList}
 
@@ -73,7 +69,6 @@ public class Controller implements Initializable {
 
     public void authorization() {
 //Добавить получение настроек из БД
-//        pathClientStorage = "client_storage\\";
         username = "user1";
 
         rootClientPath = "client_storage\\" + username;
@@ -166,26 +161,17 @@ public class Controller implements Initializable {
 
 //Обновление клиентского листа
     private void refreshClientFilesList(String directoryName){
-        if (Platform.isFxApplicationThread()) {
-            refreshCFL(directoryName);
-        }else {
-            Platform.runLater(() -> {
-                refreshCFL(directoryName);
-            });
-        }
-    }
-
-//Обновление клиентского листа 2
-    private void refreshCFL(String directoryName){
-        lvClientFilesList.getItems().clear();
-        if (!currentClientPath.equals(rootClientPath)){
-            lvClientFilesList.getItems().add("[..]");
-        }
-        try {
-            Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        updateGUI(()->{
+            lvClientFilesList.getItems().clear();
+            if (!currentClientPath.equals(rootClientPath)){
+                lvClientFilesList.getItems().add("[..]");
+            }
+            try {
+                Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
 //Формотирование пути для вывода в листы только последней части
@@ -206,21 +192,13 @@ public class Controller implements Initializable {
 
 //Обновление серверного листа
     private void refreshServerFilesList(LinkedList<String> pathList){
-        if (Platform.isFxApplicationThread()) {
+        updateGUI(()->{
             lvServerFilesList.getItems().clear();
             if (!currentServerPath.equals(rootServerPath)){
                 lvServerFilesList.getItems().add("[..]");
             }
             pathList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
-        }else {
-            Platform.runLater(() -> {
-                lvServerFilesList.getItems().clear();
-                if (!currentServerPath.equals(rootServerPath)){
-                    lvServerFilesList.getItems().add("[..]");
-                }
-                pathList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
-            });
-        }
+        });
     }
 
 //Навигайия по серверному листу (запрос)
@@ -254,15 +232,23 @@ public class Controller implements Initializable {
 
 //Непосредственно отправка (путь пересылайемого файла, путь относительно текущего каталога, путь назначения)
     private void send(Path path){
+        byte[] data = new byte[1024*1024];
+        FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, data);
         try {
-            if (Network.sendMessage(new FileMessage(path, path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath))){
-                System.out.println("Отправлено: " + path);
-            }else {
-                System.out.println("Не отправлено: " + path);
+            FileInputStream fis = new FileInputStream(path.toFile());
+            while (fis.available()>0){
+                int temp = fis.read(data);
+                if (temp<1024*1024){
+                    fileMessage.setData(Arrays.copyOfRange(data,0,temp));
+                }
+                Network.sendMessage(fileMessage);
+                fileMessage.setNewFile(false);
             }
-        } catch (IOException e) {
+            fis.close();
+        } catch (Exception e){
             e.printStackTrace();
         }
+
     }
 
 //Запрос загрузки файсла/каталога с сервера
@@ -281,8 +267,12 @@ public class Controller implements Initializable {
     private void writeFile(FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getDestinationPath() + "\\" + fileMessage.getFilePath());
         try {
-            if (Files.isRegularFile(path)) {
-                Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
+            if (!Files.isDirectory(path)) {
+                if (fileMessage.isNewFile()) {
+                    Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
+                }else {
+                    Files.write(path, fileMessage.getData(), StandardOpenOption.APPEND);
+                }
             }else {
                 Files.createDirectories(path);
             }
@@ -291,7 +281,7 @@ public class Controller implements Initializable {
         }
         refreshClientFilesList(currentClientPath);
     }
-
+//Удаление файлов
     public void deleteFiles() {
         if (selectedListView.equals(SelectedListView.ClientList)){
             Path path = Paths.get(currentClientPath + "\\" + currentSelectionInListView);
@@ -315,6 +305,14 @@ public class Controller implements Initializable {
             }else {
                 System.out.println("Не отправлено");
             }
+        }
+    }
+
+    private void updateGUI(Runnable r){
+        if (Platform.isFxApplicationThread()){
+            r.run();
+        }else {
+            Platform.runLater(r);
         }
     }
 }
