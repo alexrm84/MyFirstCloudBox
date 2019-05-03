@@ -9,6 +9,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import lombok.Data;
 
 import java.io.*;
@@ -24,13 +25,16 @@ import java.util.ResourceBundle;
 public class Controller implements Initializable {
 
     @FXML
-    HBox hbAuthPanel, hbControlPanel;
+    HBox hbControlPanel, hbListPanel;
 
     @FXML
-    TextField tfLogin, tfPassword, tfFilename;
+    VBox vbAuthPanel;
 
-//    @FXML
-//    TextArea taFilename;
+    @FXML
+    TextField tfLogin, tfFilename;
+
+    @FXML
+    PasswordField pfPassword;
 
     @FXML
     ListView<String> lvServerFilesList, lvClientFilesList;
@@ -46,8 +50,10 @@ public class Controller implements Initializable {
 
     public void setAuthenticated(boolean authenticated) {
         this.authenticated = authenticated;
-        hbAuthPanel.setVisible(!authenticated);
-        hbAuthPanel.setManaged(!authenticated);
+        vbAuthPanel.setVisible(!authenticated);
+        vbAuthPanel.setManaged(!authenticated);
+        hbListPanel.setVisible(authenticated);
+        hbListPanel.setManaged(authenticated);
         hbControlPanel.setVisible(authenticated);
         hbControlPanel.setManaged(authenticated);
         if (!authenticated) {
@@ -67,15 +73,30 @@ public class Controller implements Initializable {
         storageNavigation();
     }
 
-    public void authorization() {
-//Добавить получение настроек из БД
-        username = "user1";
+    public void requestAuthorization(){
+        System.out.println("нажата кнопка");
+        System.out.println(tfLogin.getText() + " " + pfPassword.getText());
+        if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
+            Network.sendMessage(new SystemMessage().setTypeMessage(Command.Authorization).setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
 
-        rootClientPath = "client_storage\\" + username;
-        currentClientPath = rootClientPath;
-        rootServerPath = "server_storage\\" + username;
-        currentServerPath = rootServerPath;
-        setAuthenticated(true);
+        }else {
+            new Alert(Alert.AlertType.CONFIRMATION, "Enter login and password", ButtonType.OK).showAndWait();
+        }
+    }
+
+    public void authorization(SystemMessage systemMessage) {
+        if (systemMessage.isAuthorization()) {
+            username = systemMessage.getLoginAndPassword()[0];
+            rootClientPath = "client_storage\\" + username;
+            currentClientPath = rootClientPath;
+            rootServerPath = systemMessage.getCurrentServerPath();
+            currentServerPath = rootServerPath;
+            setAuthenticated(true);
+        }else {
+            new Alert(Alert.AlertType.CONFIRMATION, "User not found", ButtonType.OK);
+            tfLogin.clear();
+            pfPassword.clear();
+        }
     }
 
     @Override
@@ -93,6 +114,9 @@ public class Controller implements Initializable {
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
                         switch (systemMessage.getTypeMessage()){
+                            case Authorization:
+                                authorization(systemMessage);
+                                break;
                             case Refresh:
                                 refreshServerFilesList(systemMessage.getPathsList());
                                 break;
@@ -230,25 +254,28 @@ public class Controller implements Initializable {
         }
     }
 
-//Непосредственно отправка (путь пересылайемого файла, путь относительно текущего каталога, путь назначения)
+//Непосредственно отправка (путь пересылайемого файла, путь назначения, данные (если есть), файл/каталог)
     private void send(Path path){
         byte[] data = new byte[1024*1024];
-        FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, data);
-        try {
-            FileInputStream fis = new FileInputStream(path.toFile());
-            while (fis.available()>0){
-                int temp = fis.read(data);
-                if (temp<1024*1024){
-                    fileMessage.setData(Arrays.copyOfRange(data,0,temp));
+        FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, data, true);
+        if (Files.isDirectory(path)){
+            Network.sendMessage(new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, null, false));
+        }else {
+            try {
+                FileInputStream fis = new FileInputStream(path.toFile());
+                while (fis.available() > 0) {
+                    int temp = fis.read(data);
+                    if (temp < 1024 * 1024) {
+                        fileMessage.setData(Arrays.copyOfRange(data, 0, temp));
+                    }
+                    Network.sendMessage(fileMessage);
+                    fileMessage.setNewFile(false);
                 }
-                Network.sendMessage(fileMessage);
-                fileMessage.setNewFile(false);
+                fis.close();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            fis.close();
-        } catch (Exception e){
-            e.printStackTrace();
         }
-
     }
 
 //Запрос загрузки файсла/каталога с сервера
@@ -267,7 +294,7 @@ public class Controller implements Initializable {
     private void writeFile(FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getDestinationPath() + "\\" + fileMessage.getFilePath());
         try {
-            if (!Files.isDirectory(path)) {
+            if (fileMessage.isFile()) {
                 if (fileMessage.isNewFile()) {
                     Files.write(path, fileMessage.getData(), StandardOpenOption.CREATE);
                 }else {

@@ -11,6 +11,8 @@ public class SystemMessage extends AbstractMessage {
     private String requestedPath;
     private String currentServerPath, currentClientPath;
     private LinkedList<String> pathsList;
+    private String[] loginAndPassword;
+    private boolean authorization;
 
     public SystemMessage setTypeMessage(Command typeMessage) {
         this.typeMessage = typeMessage;
@@ -39,6 +41,16 @@ public class SystemMessage extends AbstractMessage {
 
     public SystemMessage setRequestedPath(String requestedPath) {
         this.requestedPath = requestedPath;
+        return this;
+    }
+
+    public SystemMessage setLoginAndPassword(String[] loginAndPassword) {
+        this.loginAndPassword = loginAndPassword;
+        return this;
+    }
+
+    public SystemMessage setAuthorization(boolean authorization) {
+        this.authorization = authorization;
         return this;
     }
 }

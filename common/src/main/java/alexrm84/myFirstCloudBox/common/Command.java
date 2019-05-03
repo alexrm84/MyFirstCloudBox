@@ -4,5 +4,6 @@ public enum  Command {
     Refresh,
     CheckPath,
     ReceiveFiles,
-    DeleteFiles
+    DeleteFiles,
+    Authorization
 }
