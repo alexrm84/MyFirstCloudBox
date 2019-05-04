@@ -4,6 +4,9 @@ import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -11,7 +14,7 @@ import java.nio.file.*;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
-import java.util.logging.*;
+
 
 
 public class Worker {
@@ -19,20 +22,9 @@ public class Worker {
     private String userStorage;
     private ChannelHandlerContext ctx;
     private SQLHandler sqlHandler;
-    public static final Logger logger = Logger.getLogger(Server.class.getName());
+    private static final Logger logger = LogManager.getLogger(Worker.class);
 
     public Worker(ChannelHandlerContext ctx) {
-        logger.setLevel(Level.INFO);
-        logger.setUseParentHandlers(false);
-        Handler handler;
-        try {
-            handler = new FileHandler("server_log.log", 1024*1024, 3,true);
-            handler.setFormatter(new SimpleFormatter());
-            handler.setLevel(Level.INFO);
-            logger.addHandler(handler);
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Exception: ", e);
-        }
         this.ctx = ctx;
         sqlHandler = new SQLHandler();
         rootStorage = "server_storage\\";
@@ -60,8 +52,7 @@ public class Worker {
         try {
             Files.list(Paths.get(path)).forEach(p->filesList.add(p.toString()));
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Exception: ", e);
-            e.printStackTrace();
+            logger.log(Level.ERROR, "List update error: ", e);
         }
         System.out.println(filesList);
         return filesList;
@@ -88,19 +79,17 @@ public class Worker {
                 Files.createDirectories(path);
             }
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Exception: ", e);
-            e.printStackTrace();
+            logger.log(Level.ERROR, "File writing error:  ", e);
         }
         ctx.writeAndFlush(new SystemMessage().setTypeMessage(Command.Refresh).setPathsList(refreshFiles(fileMessage.getDestinationPath())));
     }
 
-//Отправка файла/каталога с сроходом по детереву каталога
+//Отправка файла/каталога с проходом по детереву каталога
     public void sendFiles(ChannelHandlerContext ctx, SystemMessage systemMessage){
         try {
             Files.walk(Paths.get(systemMessage.getRequestedPath())).sorted(Comparator.naturalOrder()).forEach(path -> send(ctx, systemMessage, path));
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Exception: ", e);
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Error building the list of send files: ", e);
         }
     }
 
@@ -124,9 +113,9 @@ public class Worker {
                     fileMessage.setNewFile(false);
                 }
                 fis.close();
+                logger.log(Level.INFO, "File upload: " + path);
             } catch (Exception e) {
-                logger.log(Level.SEVERE, "Exception: ", e);
-                e.printStackTrace();
+                logger.log(Level.ERROR, "File upload error: ", e);
             }
         }
     }
@@ -139,13 +128,11 @@ public class Worker {
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException e) {
-                    logger.log(Level.SEVERE, "Exception: ", e);
-                    e.printStackTrace();
+                    logger.log(Level.ERROR, "File delete error: ", e);
                 }
             });
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Exception: ", e);
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Error building the list of delete files: ", e);
         }
         ctx.writeAndFlush(new SystemMessage().setTypeMessage(Command.Refresh).setPathsList(refreshFiles(path.getParent().toString())));
     }

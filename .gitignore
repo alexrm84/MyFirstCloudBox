@@ -5,8 +5,8 @@
 *.ear
 hs_err_pid*
 
-/client_storage/
 /server_storage/
+/client_storage/
 
 ## Robovm
 /ios/robovm-build/

@@ -11,6 +11,9 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import lombok.Data;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.net.URL;
@@ -38,6 +41,8 @@ public class Controller implements Initializable {
 
     @FXML
     ListView<String> lvServerFilesList, lvClientFilesList;
+
+    private static final Logger logger = LogManager.getLogger(Controller.class);
 
     private boolean authenticated;
     private String username;
@@ -74,8 +79,6 @@ public class Controller implements Initializable {
     }
 
     public void requestAuthorization(){
-        System.out.println("нажата кнопка");
-        System.out.println(tfLogin.getText() + " " + pfPassword.getText());
         if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
             Network.sendMessage(new SystemMessage().setTypeMessage(Command.Authorization).setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
 
@@ -127,7 +130,7 @@ public class Controller implements Initializable {
                     }
                 }
             }catch (ClassNotFoundException | IOException e){
-                e.printStackTrace();
+                logger.log(Level.ERROR, "Error retrieving data: ", e);
             }finally {
                 Network.stop();
             }
@@ -193,7 +196,7 @@ public class Controller implements Initializable {
             try {
                 Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.log(Level.ERROR, "List update error: ", e);
             }
         });
     }
@@ -207,11 +210,7 @@ public class Controller implements Initializable {
     private void requestRefreshServerFilesList(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage(Command.Refresh).setRequestedPath(directoryName);
-        if (Network.sendMessage(systemMessage)){
-            System.out.println("Отправлено");
-        }else {
-            System.out.println("Не отправлено");
-        }
+        Network.sendMessage(systemMessage);
     }
 
 //Обновление серверного листа
@@ -229,11 +228,7 @@ public class Controller implements Initializable {
     private void checkServerPath(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage(Command.CheckPath).setRequestedPath(directoryName);
-        if (Network.sendMessage(systemMessage)){
-            System.out.println("Отправлено");
-        }else {
-            System.out.println("Не отправлено");
-        }
+        Network.sendMessage(systemMessage);
     }
 
 //Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
@@ -250,7 +245,7 @@ public class Controller implements Initializable {
         try {
             Files.walk(path).sorted(Comparator.naturalOrder()).forEach(p -> send(p));
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Error building the list of send files: ", e);
         }
     }
 
@@ -273,21 +268,17 @@ public class Controller implements Initializable {
                 }
                 fis.close();
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.log(Level.ERROR, "File upload error: ", e);
             }
         }
     }
 
 //Запрос загрузки файсла/каталога с сервера
     public void receiveFiles() {
-        if (Network.sendMessage(new SystemMessage()
+        Network.sendMessage(new SystemMessage()
                 .setTypeMessage(Command.ReceiveFiles)
                 .setCurrentClientPath(currentClientPath)
-                .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView))){
-            System.out.println("Отправлено");
-        }else {
-            System.out.println("Не отправлено");
-        }
+                .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
     }
 
 //Запись файлов
@@ -304,7 +295,7 @@ public class Controller implements Initializable {
                 Files.createDirectories(path);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.log(Level.ERROR, "File writing error: ", e);
         }
         refreshClientFilesList(currentClientPath);
     }
@@ -316,22 +307,19 @@ public class Controller implements Initializable {
                 Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
                     try {
                         Files.deleteIfExists(p);
+                        logger.log(Level.INFO, "File delete: " + p);
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        logger.log(Level.ERROR, "File delete error: ", e);
                     }
                 });
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.log(Level.ERROR, "Error building the list of delete files: ", e);
             }
             refreshClientFilesList(currentClientPath);
         }else {
-            if (Network.sendMessage(new SystemMessage()
+            Network.sendMessage(new SystemMessage()
                     .setTypeMessage(Command.DeleteFiles)
-                    .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView))){
-                System.out.println("Отправлено" );
-            }else {
-                System.out.println("Не отправлено");
-            }
+                    .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
         }
     }
 

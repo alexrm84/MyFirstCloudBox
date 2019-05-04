@@ -2,28 +2,15 @@ package alexrm84.myFirstCloudBox.server;
 
 import java.io.IOException;
 import java.sql.*;
-import java.util.logging.*;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class SQLHandler {
     private Connection connection;
     private PreparedStatement checkLoginAndPassword;
 //    private static PreparedStatement psChangeNick;
-    private final Logger logger = Logger.getLogger(Server.class.getName());
-
-    public SQLHandler(){
-        logger.setLevel(Level.INFO);
-        logger.setUseParentHandlers(false);
-        Handler handler;
-        try {
-            handler = new FileHandler("server_log.log",true);
-            handler.setFormatter(new SimpleFormatter());
-            handler.setLevel(Level.INFO);
-            logger.addHandler(handler);
-        } catch (IOException e) {
-            e.printStackTrace();
-            logger.log(Level.SEVERE, String.valueOf(e));
-        }
-    }
+    private static final Logger logger = LogManager.getLogger(SQLHandler.class);
 
     public boolean checkLoginAndPassword(String login, String password){
         boolean check = false;
@@ -31,12 +18,13 @@ public class SQLHandler {
             checkLoginAndPassword.setString(1, login);
             checkLoginAndPassword.setString(2, password);
             ResultSet rs = checkLoginAndPassword.executeQuery();
-            if (rs.next()) check = true;
-            System.out.println(rs);
+            if (rs.next()) {
+                check = true;
+                logger.log(Level.INFO, "User: " + login + " is authorized");
+            }
             rs.close();
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, String.valueOf(e));
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Database query error: ", e);
         }
         return check;
     }
@@ -61,8 +49,7 @@ public class SQLHandler {
             checkLoginAndPassword = connection.prepareStatement("SELECT * FROM logins WHERE login = ? AND password = ?;");
             return true;
         } catch (Exception e) {
-            logger.log(Level.SEVERE, String.valueOf(e));
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Database connection error: ", e);
             return false;
         }
     }
@@ -76,8 +63,7 @@ public class SQLHandler {
         try {
             checkLoginAndPassword.close();
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, String.valueOf(e));
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Database connection close error: ", e);
         }
 //        try {
 //            psChangeNick.close();
@@ -87,8 +73,7 @@ public class SQLHandler {
         try {
             connection.close();
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, String.valueOf(e));
-            e.printStackTrace();
+            logger.log(Level.ERROR, "Database connection close error: ", e);
         }
     }
 }
