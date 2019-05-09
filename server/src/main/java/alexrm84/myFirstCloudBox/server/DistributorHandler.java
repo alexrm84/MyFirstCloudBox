@@ -1,18 +1,39 @@
 package alexrm84.myFirstCloudBox.server;
 
 import alexrm84.myFirstCloudBox.common.Command;
+import alexrm84.myFirstCloudBox.common.CryptoUtil;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.security.NoSuchAlgorithmException;
 
 public class DistributorHandler extends ChannelInboundHandlerAdapter {
-    private boolean authorization = false;
+    private boolean firstRun;
+    private boolean authorization;
+    Worker worker;
+    CryptoUtil cryptoUtil;
+    private static final Logger logger = LogManager.getLogger(DistributorHandler.class);
+
+    public DistributorHandler() {
+        this.firstRun = true;
+        this.authorization = false;
+        this.worker = new Worker();
+        this.cryptoUtil = new CryptoUtil();
+    }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        Worker worker = new Worker(ctx);
+        if (firstRun){
+            cryptoUtil.initRSA();
+            ctx.writeAndFlush(new SystemMessage().setTypeMessage(Command.Encryption).setPublicKeyRSA(cryptoUtil.getKeyPairRSA().getPublic()));
+            firstRun = false;
+        }
         try {
             if (msg == null) {
                 return;
@@ -43,7 +64,7 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                 if (msg instanceof SystemMessage){
                     SystemMessage systemMessage = (SystemMessage) msg;
                     if (systemMessage.getTypeMessage().equals(Command.Authorization)) {
-                        authorization = worker.authorization(ctx, systemMessage);
+                        authorization = worker.authorization(ctx, systemMessage, cryptoUtil);
                     }
                 }
             }

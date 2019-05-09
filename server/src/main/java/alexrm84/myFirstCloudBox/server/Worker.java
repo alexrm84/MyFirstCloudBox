@@ -1,6 +1,7 @@
 package alexrm84.myFirstCloudBox.server;
 
 import alexrm84.myFirstCloudBox.common.Command;
+import alexrm84.myFirstCloudBox.common.CryptoUtil;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
@@ -8,31 +9,36 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.*;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 
-
-
 public class Worker {
     private String rootStorage;
     private String userStorage;
-    private ChannelHandlerContext ctx;
     private SQLHandler sqlHandler;
+    CryptoUtil cryptoUtil;
     private static final Logger logger = LogManager.getLogger(Worker.class);
 
-    public Worker(ChannelHandlerContext ctx) {
-        this.ctx = ctx;
+    public Worker() {
         sqlHandler = new SQLHandler();
         rootStorage = "server_storage\\";
     }
 
-    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage){
+//Авторизация.
+    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage, CryptoUtil cryptoUtil){
         sqlHandler.connect();
-        if (sqlHandler.checkLoginAndPassword(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
+        this.cryptoUtil = cryptoUtil;
+        cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
+        if (sqlHandler.checkLoginAndPassword(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[0]).toString(), cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[1]).toString())){
             userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
             ctx.writeAndFlush(systemMessage.setAuthorization(true).setCurrentServerPath(userStorage));
             ctx.writeAndFlush(systemMessage.setTypeMessage(Command.Refresh)
@@ -58,14 +64,14 @@ public class Worker {
         return filesList;
     }
 
-    //формирование списка файлов при навигации по листу
+//формирование списка файлов при навигации по листу
     public void checkPath(ChannelHandlerContext ctx, SystemMessage systemMessage){
         if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
             ctx.writeAndFlush(systemMessage.setPathsList(refreshFiles(systemMessage.getRequestedPath())).setCurrentServerPath(systemMessage.getRequestedPath()));
         }
     }
 
-    //Запись файлов
+//Запись файлов
     public void writeFile(ChannelHandlerContext ctx, FileMessage fileMessage){
         Path path = Paths.get(fileMessage.getDestinationPath() + "\\" + fileMessage.getFilePath());
         try {

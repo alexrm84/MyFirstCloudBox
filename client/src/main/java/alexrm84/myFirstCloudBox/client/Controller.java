@@ -1,9 +1,6 @@
 package alexrm84.myFirstCloudBox.client;
 
-import alexrm84.myFirstCloudBox.common.AbstractMessage;
-import alexrm84.myFirstCloudBox.common.Command;
-import alexrm84.myFirstCloudBox.common.FileMessage;
-import alexrm84.myFirstCloudBox.common.SystemMessage;
+import alexrm84.myFirstCloudBox.common.*;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -15,9 +12,17 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.*;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -43,6 +48,8 @@ public class Controller implements Initializable {
     ListView<String> lvServerFilesList, lvClientFilesList;
 
     private static final Logger logger = LogManager.getLogger(Controller.class);
+
+    private CryptoUtil cryptoUtil;
 
     private boolean authenticated;
     private String username;
@@ -78,18 +85,22 @@ public class Controller implements Initializable {
         storageNavigation();
     }
 
+//Запрос авторизации.
     public void requestAuthorization(){
         if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
-            Network.sendMessage(new SystemMessage().setTypeMessage(Command.Authorization).setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
-
+            Network.sendMessage(new SystemMessage()
+                    .setTypeMessage(Command.Authorization)
+                    .setLoginAndPassword(new byte[][]{cryptoUtil.encryptAES(tfLogin.getText().getBytes()), cryptoUtil.encryptAES(pfPassword.getText().getBytes())})
+                    .setSecretKeyAES(cryptoUtil.encryptRSA(cryptoUtil.getSecretKeyAES())));
         }else {
             new Alert(Alert.AlertType.CONFIRMATION, "Enter login and password", ButtonType.OK).showAndWait();
         }
     }
 
+//Авторизация.
     public void authorization(SystemMessage systemMessage) {
         if (systemMessage.isAuthorization()) {
-            username = systemMessage.getLoginAndPassword()[0];
+            username = tfLogin.getText();
             rootClientPath = "client_storage\\" + username;
             currentClientPath = rootClientPath;
             rootServerPath = systemMessage.getCurrentServerPath();
@@ -102,10 +113,17 @@ public class Controller implements Initializable {
         }
     }
 
+//Получение открытого ключа RSA, Инициализация AES
+    private void encryption(SystemMessage systemMessage){
+        cryptoUtil.setKeyPairRSA(new KeyPair(systemMessage.getPublicKeyRSA(), null));
+        cryptoUtil.initAES();
+    }
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         setAuthenticated(false);
         Network.start();
+        cryptoUtil = new CryptoUtil();
         Thread thread = new Thread(()->{
             try {
                 while (true){
@@ -117,6 +135,9 @@ public class Controller implements Initializable {
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
                         switch (systemMessage.getTypeMessage()){
+                            case Encryption:
+                                encryption(systemMessage);
+                                break;
                             case Authorization:
                                 authorization(systemMessage);
                                 break;
@@ -140,7 +161,6 @@ public class Controller implements Initializable {
     }
 
 //Навигация по листам.
-
     public void storageNavigation(){
         lvClientFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
