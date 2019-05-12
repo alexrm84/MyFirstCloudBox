@@ -12,17 +12,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.*;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -52,6 +45,7 @@ public class Controller implements Initializable {
     private CryptoUtil cryptoUtil;
 
     private boolean authenticated;
+    private boolean keyExchange;
     private String username;
     private String currentClientPath, currentServerPath;
     private String rootClientPath, rootServerPath;
@@ -88,10 +82,10 @@ public class Controller implements Initializable {
 //Запрос авторизации.
     public void requestAuthorization(){
         if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
-            Network.sendMessage(new SystemMessage()
+            System.out.println();
+            encryption(new SystemMessage()
                     .setTypeMessage(Command.Authorization)
-                    .setLoginAndPassword(new byte[][]{cryptoUtil.encryptAES(tfLogin.getText().getBytes()), cryptoUtil.encryptAES(pfPassword.getText().getBytes())})
-                    .setSecretKeyAES(cryptoUtil.encryptRSA(cryptoUtil.getSecretKeyAES())));
+                    .setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
         }else {
             new Alert(Alert.AlertType.CONFIRMATION, "Enter login and password", ButtonType.OK).showAndWait();
         }
@@ -107,27 +101,73 @@ public class Controller implements Initializable {
             currentServerPath = rootServerPath;
             setAuthenticated(true);
         }else {
-            new Alert(Alert.AlertType.CONFIRMATION, "User not found", ButtonType.OK);
+            new Alert(Alert.AlertType.CONFIRMATION, "User not found", ButtonType.OK).showAndWait();
             tfLogin.clear();
             pfPassword.clear();
         }
     }
 
 //Получение открытого ключа RSA, Инициализация AES
-    private void encryption(SystemMessage systemMessage){
-        cryptoUtil.setKeyPairRSA(new KeyPair(systemMessage.getPublicKeyRSA(), null));
-        cryptoUtil.initAES();
+    private void encryption(AbstractMessage abstractMessage){
+        if (keyExchange && abstractMessage instanceof SystemMessage) {
+            SystemMessage systemMessage = (SystemMessage)abstractMessage;
+            if (systemMessage.getTypeMessage() == null) {
+                Network.sendMessage(new SystemMessage().setTypeMessage(Command.PublicKeyRSA));
+                System.out.println("отправлен запрос открытого ключа РСА");
+                return;
+            }
+            if (systemMessage.getTypeMessage().equals(Command.PublicKeyRSA)) {
+                cryptoUtil.setKeyPairRSA(new KeyPair(systemMessage.getPublicKeyRSA(), null));
+                System.out.println("РСА получен");
+                cryptoUtil.initAES();
+                Network.sendMessage(new SystemMessage().setTypeMessage(Command.SecretKeyAES).setSecretKeyAES(cryptoUtil.encryptRSA(cryptoUtil.getSecretKeyAES())));
+                System.out.println("Отправлен АЕС");
+                return;
+            }
+            if (systemMessage.getTypeMessage().equals(Command.SecretKeyAES)) {
+                keyExchange = false;
+                System.out.println("АЕС сервером получен");
+                return;
+            }
+        }
+        if (!keyExchange){
+            try {
+                byte[] data = Serialization.serialize(abstractMessage);
+                data = cryptoUtil.encryptAES(data);
+                Network.sendMessage(new EncryptedMessage(data));
+            } catch (IOException e) {
+                logger.log(Level.ERROR, "Data serialization error: ", e);
+            }
+        }
     }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         setAuthenticated(false);
-        Network.start();
+        keyExchange = true;
         cryptoUtil = new CryptoUtil();
+        Network.start();
+        encryption(new SystemMessage());
         Thread thread = new Thread(()->{
             try {
                 while (true){
                     AbstractMessage abstractMessage = Network.readObject();
+                    if (abstractMessage instanceof EncryptedMessage){
+                        EncryptedMessage em = (EncryptedMessage)abstractMessage;
+                        byte[] data = em.getData();
+                        data = cryptoUtil.decryptAES(data);
+                        Object obj = null;
+                        try {
+                            obj = Serialization.deserialize(data);
+                        } catch (IOException e) {
+                            logger.log(Level.ERROR, "Data deserialization error: ", e);
+                        } catch (ClassNotFoundException e) {
+                            logger.log(Level.ERROR, "Data deserialization error: ", e);
+                        }
+                        if (obj instanceof AbstractMessage){
+                            abstractMessage = (AbstractMessage)obj;
+                        }
+                    }
                     if (abstractMessage instanceof FileMessage){
                         FileMessage fileMessage = (FileMessage)abstractMessage;
                         writeFile(fileMessage);
@@ -135,7 +175,8 @@ public class Controller implements Initializable {
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
                         switch (systemMessage.getTypeMessage()){
-                            case Encryption:
+                            case SecretKeyAES:
+                            case PublicKeyRSA:
                                 encryption(systemMessage);
                                 break;
                             case Authorization:
@@ -230,7 +271,7 @@ public class Controller implements Initializable {
     private void requestRefreshServerFilesList(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage(Command.Refresh).setRequestedPath(directoryName);
-        Network.sendMessage(systemMessage);
+        encryption(systemMessage);
     }
 
 //Обновление серверного листа
@@ -248,7 +289,7 @@ public class Controller implements Initializable {
     private void checkServerPath(String directoryName){
         SystemMessage systemMessage = new SystemMessage();
         systemMessage.setTypeMessage(Command.CheckPath).setRequestedPath(directoryName);
-        Network.sendMessage(systemMessage);
+        encryption(systemMessage);
     }
 
 //Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
@@ -274,7 +315,7 @@ public class Controller implements Initializable {
         byte[] data = new byte[1024*1024];
         FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, data, true);
         if (Files.isDirectory(path)){
-            Network.sendMessage(new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, null, false));
+            encryption(new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, null, false));
         }else {
             try {
                 FileInputStream fis = new FileInputStream(path.toFile());
@@ -283,7 +324,7 @@ public class Controller implements Initializable {
                     if (temp < 1024 * 1024) {
                         fileMessage.setData(Arrays.copyOfRange(data, 0, temp));
                     }
-                    Network.sendMessage(fileMessage);
+                    encryption(fileMessage);
                     fileMessage.setNewFile(false);
                 }
                 fis.close();
@@ -295,7 +336,7 @@ public class Controller implements Initializable {
 
 //Запрос загрузки файсла/каталога с сервера
     public void receiveFiles() {
-        Network.sendMessage(new SystemMessage()
+        encryption(new SystemMessage()
                 .setTypeMessage(Command.ReceiveFiles)
                 .setCurrentClientPath(currentClientPath)
                 .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
@@ -319,6 +360,7 @@ public class Controller implements Initializable {
         }
         refreshClientFilesList(currentClientPath);
     }
+
 //Удаление файлов
     public void deleteFiles() {
         if (selectedListView.equals(SelectedListView.ClientList)){
@@ -337,7 +379,7 @@ public class Controller implements Initializable {
             }
             refreshClientFilesList(currentClientPath);
         }else {
-            Network.sendMessage(new SystemMessage()
+            encryption(new SystemMessage()
                     .setTypeMessage(Command.DeleteFiles)
                     .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
         }

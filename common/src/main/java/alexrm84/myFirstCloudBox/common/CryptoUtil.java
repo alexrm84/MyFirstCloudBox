@@ -1,6 +1,5 @@
 package alexrm84.myFirstCloudBox.common;
 
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.logging.log4j.Level;
@@ -8,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
 
@@ -15,17 +15,22 @@ public class CryptoUtil {
     private static final Logger logger = LogManager.getLogger(CryptoUtil.class);
     private KeyGenerator keyGenerator;
     private SecureRandom secureRandom;
-    private final int KEY_BIT_SIZE = 1024;
+    private final int KEY_BIT_SIZE = 256;
     @Getter @Setter
     private SecretKey secretKeyAES;
-    Cipher cipher;
+    private Cipher cipher;
+    private IvParameterSpec ivSpec;
 
     private KeyPairGenerator keyPairGenerator;
     @Getter @Setter
     private KeyPair keyPairRSA;
 
     public CryptoUtil() {
+        secretKeyAES = null;
+        keyPairRSA = null;
         this.secureRandom = new SecureRandom();
+        byte[] iv = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        ivSpec = new IvParameterSpec(iv);
     }
 
     public void initAES() {
@@ -41,7 +46,7 @@ public class CryptoUtil {
     public byte[] encryptAES(byte[] data) {
         try {
             cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.ENCRYPT_MODE, secretKeyAES);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKeyAES, ivSpec);
             return cipher.doFinal(data);
         } catch (NoSuchAlgorithmException e) {
             logger.log(Level.ERROR, "RSA encryption error: ", e);
@@ -52,6 +57,8 @@ public class CryptoUtil {
         } catch (NoSuchPaddingException e) {
             logger.log(Level.ERROR, "RSA encryption error: ", e);
         } catch (BadPaddingException e) {
+            logger.log(Level.ERROR, "RSA encryption error: ", e);
+        } catch (InvalidAlgorithmParameterException e) {
             logger.log(Level.ERROR, "RSA encryption error: ", e);
         }
         return null;
@@ -59,9 +66,8 @@ public class CryptoUtil {
 
     public byte[] decryptAES(byte[] data) {
         try {
-            KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
             cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.DECRYPT_MODE, secretKeyAES);
+            cipher.init(Cipher.DECRYPT_MODE, secretKeyAES, ivSpec);
             return cipher.doFinal(data);
         } catch (NoSuchAlgorithmException e) {
             logger.log(Level.ERROR, "AES decryption error: ", e);
@@ -72,6 +78,8 @@ public class CryptoUtil {
         } catch (NoSuchPaddingException e) {
             logger.log(Level.ERROR, "AES decryption error: ", e);
         } catch (BadPaddingException e) {
+            logger.log(Level.ERROR, "AES decryption error: ", e);
+        } catch (InvalidAlgorithmParameterException e) {
             logger.log(Level.ERROR, "AES decryption error: ", e);
         }
         return null;
@@ -88,7 +96,7 @@ public class CryptoUtil {
 
     public byte[] encryptRSA(SecretKey secretKey) {
         try {
-            cipher = Cipher.getInstance("RSA/ECB/NOPADDING");
+            cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.ENCRYPT_MODE, keyPairRSA.getPublic());
             return cipher.doFinal(secretKey.getEncoded());
         } catch (NoSuchAlgorithmException e) {
@@ -107,9 +115,10 @@ public class CryptoUtil {
 
     public void decryptRSA(byte[] data) {
         try {
-            cipher = Cipher.getInstance("RSA/ECB/NOPADDING");
+            cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.DECRYPT_MODE, keyPairRSA.getPrivate());
-            secretKeyAES = new SecretKeySpec(cipher.doFinal(data), "AES");
+            this.secretKeyAES = new SecretKeySpec(cipher.doFinal(data), "AES");
+            System.out.println("полученный АЕС:  "+secretKeyAES);
         } catch (NoSuchAlgorithmException e) {
             logger.log(Level.ERROR, "RSA decryption error: ", e);
         } catch (InvalidKeyException e) {

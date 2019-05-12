@@ -25,7 +25,7 @@ public class Worker {
     private String rootStorage;
     private String userStorage;
     private SQLHandler sqlHandler;
-    CryptoUtil cryptoUtil;
+//    CryptoUtil cryptoUtil;
     private static final Logger logger = LogManager.getLogger(Worker.class);
 
     public Worker() {
@@ -34,12 +34,15 @@ public class Worker {
     }
 
 //Авторизация.
-    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage, CryptoUtil cryptoUtil){
+    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage/*, CryptoUtil cryptoUtil*/){
         sqlHandler.connect();
-        this.cryptoUtil = cryptoUtil;
-        cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
-        if (sqlHandler.checkLoginAndPassword(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[0]).toString(), cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[1]).toString())){
-            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
+//        this.cryptoUtil = cryptoUtil;
+//        cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
+//        String login = new String(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[0]));
+//        String pass = new String(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[1]));
+//        if (sqlHandler.checkLoginAndPassword(login, pass)){
+        if (sqlHandler.checkLoginAndPassword(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
+            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];//login;
             ctx.writeAndFlush(systemMessage.setAuthorization(true).setCurrentServerPath(userStorage));
             ctx.writeAndFlush(systemMessage.setTypeMessage(Command.Refresh)
                     .setPathsList(refreshFiles(userStorage))

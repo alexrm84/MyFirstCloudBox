@@ -2,7 +2,6 @@ package alexrm84.myFirstCloudBox.common;
 
 import lombok.Getter;
 
-import javax.crypto.SecretKey;
 import java.security.PublicKey;
 import java.util.LinkedList;
 
@@ -15,7 +14,8 @@ public class SystemMessage extends AbstractMessage {
     private String requestedPath;
     private String currentServerPath, currentClientPath;
     private LinkedList<String> pathsList;
-    private byte[][] loginAndPassword;
+//    private byte[][] loginAndPassword;
+    private String[] loginAndPassword;
     private boolean authorization;
 
     public SystemMessage setSecretKeyAES(byte[] secretKeyAES) {
@@ -58,7 +58,7 @@ public class SystemMessage extends AbstractMessage {
         return this;
     }
 
-    public SystemMessage setLoginAndPassword(byte[][] loginAndPassword) {
+    public SystemMessage setLoginAndPassword(String[] loginAndPassword) {
         this.loginAndPassword = loginAndPassword;
         return this;
     }
