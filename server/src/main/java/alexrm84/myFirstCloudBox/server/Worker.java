@@ -34,15 +34,31 @@ public class Worker {
     }
 
 //Авторизация.
-    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage/*, CryptoUtil cryptoUtil*/){
+    public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage){
         sqlHandler.connect();
-//        this.cryptoUtil = cryptoUtil;
-//        cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
-//        String login = new String(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[0]));
-//        String pass = new String(cryptoUtil.decryptAES(systemMessage.getLoginAndPassword()[1]));
-//        if (sqlHandler.checkLoginAndPassword(login, pass)){
         if (sqlHandler.checkLoginAndPassword(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
-            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];//login;
+            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
+            ctx.writeAndFlush(systemMessage.setAuthorization(true).setCurrentServerPath(userStorage));
+            ctx.writeAndFlush(systemMessage.setTypeMessage(Command.Refresh)
+                    .setPathsList(refreshFiles(userStorage))
+                    .setCurrentServerPath(userStorage));
+            sqlHandler.disconnect();
+            return true;
+        }
+        ctx.writeAndFlush(systemMessage.setAuthorization(false));
+        sqlHandler.disconnect();
+        return false;
+    }
+
+    public boolean createUser(ChannelHandlerContext ctx, SystemMessage systemMessage){
+        sqlHandler.connect();
+        if (sqlHandler.createUser(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
+            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
+            try {
+                Files.createDirectories(Paths.get(userStorage));
+            } catch (IOException e) {
+                logger.log(Level.ERROR, "Create directory error: ", e);
+            }
             ctx.writeAndFlush(systemMessage.setAuthorization(true).setCurrentServerPath(userStorage));
             ctx.writeAndFlush(systemMessage.setTypeMessage(Command.Refresh)
                     .setPathsList(refreshFiles(userStorage))

@@ -2,6 +2,7 @@ package alexrm84.myFirstCloudBox.client;
 
 import alexrm84.myFirstCloudBox.common.*;
 import javafx.application.Platform;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -78,6 +79,17 @@ public class Controller implements Initializable {
         requestRefreshServerFilesList(currentServerPath);
         storageNavigation();
     }
+//Создание нового пользователя
+    public void createUser() {
+        if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
+            System.out.println();
+            encryption(new SystemMessage()
+                    .setTypeMessage(Command.CreateUser)
+                    .setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
+        }else {
+            new Alert(Alert.AlertType.CONFIRMATION, "Enter login and password", ButtonType.OK).showAndWait();
+        }
+    }
 
 //Запрос авторизации.
     public void requestAuthorization(){
@@ -96,6 +108,13 @@ public class Controller implements Initializable {
         if (systemMessage.isAuthorization()) {
             username = tfLogin.getText();
             rootClientPath = "client_storage\\" + username;
+            if (systemMessage.getTypeMessage().equals(Command.CreateUser)){
+                try {
+                    Files.createDirectories(Paths.get(rootClientPath));
+                } catch (IOException e) {
+                    logger.log(Level.ERROR, "Create directory error: ", e);
+                }
+            }
             currentClientPath = rootClientPath;
             rootServerPath = systemMessage.getCurrentServerPath();
             currentServerPath = rootServerPath;
@@ -179,6 +198,7 @@ public class Controller implements Initializable {
                             case PublicKeyRSA:
                                 encryption(systemMessage);
                                 break;
+                            case CreateUser:
                             case Authorization:
                                 authorization(systemMessage);
                                 break;

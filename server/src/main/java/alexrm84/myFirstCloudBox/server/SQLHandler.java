@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 public class SQLHandler {
     private Connection connection;
     private PreparedStatement checkLoginAndPassword;
+    private PreparedStatement createUser;
 //    private static PreparedStatement psChangeNick;
     private static final Logger logger = LogManager.getLogger(SQLHandler.class);
 
@@ -20,25 +21,29 @@ public class SQLHandler {
             ResultSet rs = checkLoginAndPassword.executeQuery();
             if (rs.next()) {
                 check = true;
-                logger.log(Level.INFO, "User: " + login + " is authorized");
+                logger.log(Level.INFO, "User: " + login + " is authorized.");
             }
             rs.close();
         } catch (SQLException e) {
-            logger.log(Level.ERROR, "Database query error: ", e);
+            logger.log(Level.ERROR, "Database query error, authorization: ", e);
         }
         return check;
     }
 
-//    public static boolean changeNick(String oldNick, String newNick) {
-//        try {
-//            psChangeNick.setString(1, newNick);
-//            psChangeNick.setString(2, oldNick);
-//            psChangeNick.executeUpdate();return true;
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//            return false;
-//        }
-//    }
+    public boolean createUser(String login, String password){
+        if (!checkLoginAndPassword(login, password)) {
+            try {
+                createUser.setString(1, "'" + login + "'");
+                createUser.setString(2, "'" + password + "'");
+                createUser.executeUpdate();
+                logger.log(Level.INFO, "User: " + login + " is created.");
+                return true;
+            } catch (SQLException e) {
+                logger.log(Level.ERROR, "Database query error, create user: ", e);
+            }
+        }
+        return false;
+    }
 
     public boolean connect() {
         try {
@@ -46,6 +51,7 @@ public class SQLHandler {
             connection = DriverManager.getConnection("jdbc:sqlite:server_cloud_box.db");
 //            stmt = connection.createStatement();
 //            psChangeNick = connection.prepareStatement("UPDATE logins SET name = ? WHERE name = ?;");
+            createUser = connection.prepareStatement("INSERT INTO logins (Login, Password) VALUES (?, ?)");
             checkLoginAndPassword = connection.prepareStatement("SELECT * FROM logins WHERE login = ? AND password = ?;");
             return true;
         } catch (Exception e) {
@@ -62,6 +68,11 @@ public class SQLHandler {
 //        }
         try {
             checkLoginAndPassword.close();
+        } catch (SQLException e) {
+            logger.log(Level.ERROR, "Database connection close error: ", e);
+        }
+        try {
+            createUser.close();
         } catch (SQLException e) {
             logger.log(Level.ERROR, "Database connection close error: ", e);
         }

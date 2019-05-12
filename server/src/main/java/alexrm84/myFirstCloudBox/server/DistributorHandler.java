@@ -45,10 +45,16 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                     worker.writeFile(ctx, fileMessage);
                 }
             }else {
-                if (msg instanceof SystemMessage){
+                if (msg instanceof SystemMessage) {
                     SystemMessage systemMessage = (SystemMessage) msg;
-                    if (systemMessage.getTypeMessage().equals(Command.Authorization)) {
-                        authorization = worker.authorization(ctx, systemMessage/*, cryptoUtil*/);
+                    switch (systemMessage.getTypeMessage()) {
+                        case Authorization:
+                            authorization = worker.authorization(ctx, systemMessage);
+                            break;
+                        case CreateUser:
+                            authorization = worker.createUser(ctx, systemMessage);
+                            break;
+
                     }
                 }
             }

@@ -6,6 +6,7 @@ public enum  Command {
     ReceiveFiles,
     DeleteFiles,
     Authorization,
+    CreateUser,
     PublicKeyRSA,
     SecretKeyAES,
     ConnectionIsAlive

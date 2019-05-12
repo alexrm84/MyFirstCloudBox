@@ -12,6 +12,7 @@
         <TextField fx:id="tfLogin" maxWidth="200" promptText="Login"/>
         <PasswordField fx:id="pfPassword" maxWidth="200" promptText="Password"/>
         <Button onAction="#requestAuthorization" text="Авторизоваться"/>
+        <Button onAction="#createUser" text="Создать пользователя"/>
     </VBox>
 
     <HBox fx:id="hbListPanel" VBox.vgrow="ALWAYS">
