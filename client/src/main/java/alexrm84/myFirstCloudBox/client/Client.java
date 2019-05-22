@@ -12,7 +12,7 @@ public class Client extends Application {
     public void start(Stage primaryStage) throws Exception{
         Parent root = FXMLLoader.load(getClass().getResource("/main.fxml"));
         primaryStage.setTitle("My first cloud box");
-        primaryStage.setScene(new Scene(root, 500, 400));
+        primaryStage.setScene(new Scene(root, 1000, 700));
         primaryStage.show();
     }
 

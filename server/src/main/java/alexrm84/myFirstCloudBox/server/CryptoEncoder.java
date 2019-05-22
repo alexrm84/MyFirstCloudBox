@@ -3,9 +3,6 @@ package alexrm84.myFirstCloudBox.server;
 import alexrm84.myFirstCloudBox.common.CryptoUtil;
 import alexrm84.myFirstCloudBox.common.EncryptedMessage;
 import alexrm84.myFirstCloudBox.common.Serialization;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
@@ -20,9 +17,11 @@ public class CryptoEncoder extends ChannelOutboundHandlerAdapter {
     private static final Logger logger = LogManager.getLogger(CryptoEncoder.class);
     private boolean keyExchange;
     private CryptoUtil cryptoUtil;
+    private Serialization serialization;
 
-    public CryptoEncoder(CryptoUtil cryptoUtil) {
+    public CryptoEncoder(CryptoUtil cryptoUtil, Serialization serialization) {
         this.cryptoUtil = cryptoUtil;
+        this.serialization = serialization;
         this.keyExchange = true;
     }
 
@@ -35,7 +34,7 @@ public class CryptoEncoder extends ChannelOutboundHandlerAdapter {
             }
         } else {
             try {
-                byte[] data = Serialization.serialize(msg);
+                byte[] data = serialization.serialize(msg);
                 data = cryptoUtil.encryptAES(data);
                 ctx.writeAndFlush(new EncryptedMessage(data));
             } catch (IOException e) {

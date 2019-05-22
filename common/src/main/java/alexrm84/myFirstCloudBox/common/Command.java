@@ -9,5 +9,6 @@ public enum  Command {
     CreateUser,
     PublicKeyRSA,
     SecretKeyAES,
+    CanSend,
     ConnectionIsAlive
 }

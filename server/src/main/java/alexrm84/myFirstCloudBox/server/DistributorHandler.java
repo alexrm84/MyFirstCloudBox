@@ -1,6 +1,5 @@
 package alexrm84.myFirstCloudBox.server;
 
-import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
@@ -26,6 +25,9 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                 if (msg instanceof SystemMessage){
                     SystemMessage systemMessage = (SystemMessage)msg;
                     switch (systemMessage.getTypeMessage()){
+                        case CanSend:
+                            worker.setCanSend(true);
+                            break;
                         case Refresh:
                             ctx.writeAndFlush(systemMessage.setPathsList(worker.refreshFiles(systemMessage.getRequestedPath())));
                             break;

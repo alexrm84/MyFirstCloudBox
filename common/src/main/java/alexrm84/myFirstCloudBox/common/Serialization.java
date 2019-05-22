@@ -4,7 +4,31 @@ import java.io.*;
 
 public class Serialization {
 
-    public static byte[] serialize(Object obj) throws IOException {
+//    private ByteArrayOutputStream baos;
+//    private ObjectOutputStream oos;
+//
+//    public Serialization(){
+//        try {
+//            baos = new ByteArrayOutputStream();
+//            oos = new ObjectOutputStream(baos);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
+//    public byte[] serialize(Object obj) throws IOException {
+//        try {
+//            oos.writeObject(obj);
+//            byte[] b = baos.toByteArray();
+//            System.out.println("сериализация" + new String(b));
+//            return b;
+//        }catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        return null;
+//    }
+
+    public byte[] serialize(Object obj) throws IOException {
         try(ByteArrayOutputStream b = new ByteArrayOutputStream()){
             try(ObjectOutputStream o = new ObjectOutputStream(b)){
                 o.writeObject(obj);
@@ -13,7 +37,8 @@ public class Serialization {
         }
     }
 
-    public static Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
+    public Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
+        System.out.println("десериализация" + new String(bytes));
         try(ByteArrayInputStream b = new ByteArrayInputStream(bytes)){
             try(ObjectInputStream o = new ObjectInputStream(b)){
                 return o.readObject();

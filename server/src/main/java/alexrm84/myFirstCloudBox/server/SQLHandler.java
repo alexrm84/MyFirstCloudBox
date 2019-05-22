@@ -1,6 +1,5 @@
 package alexrm84.myFirstCloudBox.server;
 
-import java.io.IOException;
 import java.sql.*;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -10,7 +9,6 @@ public class SQLHandler {
     private Connection connection;
     private PreparedStatement checkLoginAndPassword;
     private PreparedStatement createUser;
-//    private static PreparedStatement psChangeNick;
     private static final Logger logger = LogManager.getLogger(SQLHandler.class);
 
     public boolean checkLoginAndPassword(String login, String password){
@@ -33,8 +31,8 @@ public class SQLHandler {
     public boolean createUser(String login, String password){
         if (!checkLoginAndPassword(login, password)) {
             try {
-                createUser.setString(1, "'" + login + "'");
-                createUser.setString(2, "'" + password + "'");
+                createUser.setString(1, login);
+                createUser.setString(2, password);
                 createUser.executeUpdate();
                 logger.log(Level.INFO, "User: " + login + " is created.");
                 return true;
@@ -49,8 +47,6 @@ public class SQLHandler {
         try {
             Class.forName("org.sqlite.JDBC");
             connection = DriverManager.getConnection("jdbc:sqlite:server_cloud_box.db");
-//            stmt = connection.createStatement();
-//            psChangeNick = connection.prepareStatement("UPDATE logins SET name = ? WHERE name = ?;");
             createUser = connection.prepareStatement("INSERT INTO logins (Login, Password) VALUES (?, ?)");
             checkLoginAndPassword = connection.prepareStatement("SELECT * FROM logins WHERE login = ? AND password = ?;");
             return true;
@@ -61,11 +57,6 @@ public class SQLHandler {
     }
 
     public void disconnect() {
-//        try {
-//            stmt.close();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
         try {
             checkLoginAndPassword.close();
         } catch (SQLException e) {
@@ -76,11 +67,6 @@ public class SQLHandler {
         } catch (SQLException e) {
             logger.log(Level.ERROR, "Database connection close error: ", e);
         }
-//        try {
-//            psChangeNick.close();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
         try {
             connection.close();
         } catch (SQLException e) {

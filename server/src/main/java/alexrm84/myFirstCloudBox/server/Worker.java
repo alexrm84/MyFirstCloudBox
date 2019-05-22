@@ -1,36 +1,34 @@
 package alexrm84.myFirstCloudBox.server;
 
 import alexrm84.myFirstCloudBox.common.Command;
-import alexrm84.myFirstCloudBox.common.CryptoUtil;
 import alexrm84.myFirstCloudBox.common.FileMessage;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
+import lombok.Setter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.*;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.concurrent.TimeUnit;
 
 public class Worker {
     private String rootStorage;
     private String userStorage;
     private SQLHandler sqlHandler;
-//    CryptoUtil cryptoUtil;
+    @Setter
+    private boolean canSend;
     private static final Logger logger = LogManager.getLogger(Worker.class);
 
     public Worker() {
         sqlHandler = new SQLHandler();
         rootStorage = "server_storage\\";
+        canSend = true;
     }
 
 //Авторизация.
@@ -50,6 +48,7 @@ public class Worker {
         return false;
     }
 
+//Создание пользователя
     public boolean createUser(ChannelHandlerContext ctx, SystemMessage systemMessage){
         sqlHandler.connect();
         if (sqlHandler.createUser(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
@@ -103,6 +102,7 @@ public class Worker {
             }else {
                 Files.createDirectories(path);
             }
+            ctx.writeAndFlush(new SystemMessage().setTypeMessage(Command.CanSend));
         } catch (IOException e) {
             logger.log(Level.ERROR, "File writing error:  ", e);
         }
@@ -120,7 +120,7 @@ public class Worker {
 
 //Непосредственно отправка (путь пересылайемого файла, путь назначения, данные (если есть), файл/каталог)
     private void send(ChannelHandlerContext ctx, SystemMessage systemMessage, Path path){
-        byte[] data = new byte[1024*1024];
+        byte[] data = new byte[10 * 1024 * 1024];
         FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(systemMessage.getRequestedPath()).getNameCount()-1,path.getNameCount()).toString(), systemMessage.getCurrentClientPath(), data, true);
         if (Files.isDirectory(path)){
             fileMessage.setData(null);
@@ -131,10 +131,14 @@ public class Worker {
                 FileInputStream fis = new FileInputStream(path.toFile());
                 while (fis.available() > 0) {
                     int temp = fis.read(data);
-                    if (temp < 1024 * 1024) {
+                    if (temp <10 * 1024 * 1024) {
                         fileMessage.setData(Arrays.copyOfRange(data, 0, temp));
                     }
+                    while (!canSend){
+                        TimeUnit.MILLISECONDS.sleep(100);
+                    }
                     ctx.writeAndFlush(fileMessage);
+                    canSend = false;
                     fileMessage.setNewFile(false);
                 }
                 fis.close();

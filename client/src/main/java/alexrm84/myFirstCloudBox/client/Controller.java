@@ -2,10 +2,12 @@ package alexrm84.myFirstCloudBox.client;
 
 import alexrm84.myFirstCloudBox.common.*;
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import lombok.Data;
@@ -21,13 +23,23 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.ResourceBundle;
+import java.util.concurrent.TimeUnit;
 
 
 @Data
 public class Controller implements Initializable {
 
     @FXML
-    HBox hbControlPanel, hbListPanel;
+    TableView tvClient, tvServer;
+
+    @FXML
+    TableColumn<StoredFile, String> colNameClient, colNameServer;
+
+    @FXML
+    TableColumn<StoredFile, Long> colSizeClient, colSizeServer;
+
+    @FXML
+    HBox hbControlPanel, hbListPanel, hbTablePanel;
 
     @FXML
     VBox vbAuthPanel;
@@ -44,7 +56,9 @@ public class Controller implements Initializable {
     private static final Logger logger = LogManager.getLogger(Controller.class);
 
     private CryptoUtil cryptoUtil;
+    private Serialization serialization;
 
+    private boolean canSend;
     private boolean authenticated;
     private boolean keyExchange;
     private String username;
@@ -52,6 +66,7 @@ public class Controller implements Initializable {
     private String rootClientPath, rootServerPath;
     private String currentSelectionInListView;
     private SelectedListView selectedListView;
+    StoredFile parentDirectory;
 
     private enum SelectedListView {ServerList, ClientList}
 
@@ -59,29 +74,32 @@ public class Controller implements Initializable {
         this.authenticated = authenticated;
         vbAuthPanel.setVisible(!authenticated);
         vbAuthPanel.setManaged(!authenticated);
-        hbListPanel.setVisible(authenticated);
-        hbListPanel.setManaged(authenticated);
+
+//        hbListPanel.setVisible(authenticated);
+//        hbListPanel.setManaged(authenticated);
+        hbTablePanel.setVisible(authenticated);
+        hbTablePanel.setManaged(authenticated);
+
         hbControlPanel.setVisible(authenticated);
         hbControlPanel.setManaged(authenticated);
-        if (!authenticated) {
-            username = "";
-            lvClientFilesList.getItems().clear();
-            lvServerFilesList.getItems().clear();
-        }else {
-            work();
+        if (authenticated) {
+            refreshData();
         }
     }
 
-    public void work(){
-        lvClientFilesList.getItems().clear();
+    public void refreshData(){
+//        lvClientFilesList.getItems().clear();
+        tvClient.getItems().clear();
         refreshClientFilesList(currentClientPath);
-        lvServerFilesList.getItems().clear();
+//        lvServerFilesList.getItems().clear();
+        tvServer.getItems().clear();
         requestRefreshServerFilesList(currentServerPath);
         storageNavigation();
     }
+
 //Создание нового пользователя
     public void createUser() {
-        if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
+        if (!tfLogin.getText().trim().equals("") && !pfPassword.getText().trim().equals("")){
             System.out.println();
             encryption(new SystemMessage()
                     .setTypeMessage(Command.CreateUser)
@@ -93,7 +111,7 @@ public class Controller implements Initializable {
 
 //Запрос авторизации.
     public void requestAuthorization(){
-        if (!tfLogin.getText().equals("") && !pfPassword.getText().equals("")){
+        if (!tfLogin.getText().trim().equals("") && !pfPassword.getText().trim().equals("")){
             System.out.println();
             encryption(new SystemMessage()
                     .setTypeMessage(Command.Authorization)
@@ -126,32 +144,36 @@ public class Controller implements Initializable {
         }
     }
 
-//Получение открытого ключа RSA, Инициализация AES
+//Получение открытого ключа RSA, Инициализация AES, после авторизации кодирование сообщения.
     private void encryption(AbstractMessage abstractMessage){
         if (keyExchange && abstractMessage instanceof SystemMessage) {
             SystemMessage systemMessage = (SystemMessage)abstractMessage;
             if (systemMessage.getTypeMessage() == null) {
                 Network.sendMessage(new SystemMessage().setTypeMessage(Command.PublicKeyRSA));
+                logger.log(Level.INFO, "отправлен запрос открытого ключа РСА");
                 System.out.println("отправлен запрос открытого ключа РСА");
                 return;
             }
             if (systemMessage.getTypeMessage().equals(Command.PublicKeyRSA)) {
                 cryptoUtil.setKeyPairRSA(new KeyPair(systemMessage.getPublicKeyRSA(), null));
+                logger.log(Level.INFO, "РСА получен");
                 System.out.println("РСА получен");
                 cryptoUtil.initAES();
                 Network.sendMessage(new SystemMessage().setTypeMessage(Command.SecretKeyAES).setSecretKeyAES(cryptoUtil.encryptRSA(cryptoUtil.getSecretKeyAES())));
+                logger.log(Level.INFO, "Отправлен АЕС");
                 System.out.println("Отправлен АЕС");
                 return;
             }
             if (systemMessage.getTypeMessage().equals(Command.SecretKeyAES)) {
                 keyExchange = false;
+                logger.log(Level.INFO, "АЕС сервером получен");
                 System.out.println("АЕС сервером получен");
                 return;
             }
         }
         if (!keyExchange){
             try {
-                byte[] data = Serialization.serialize(abstractMessage);
+                byte[] data = serialization.serialize(abstractMessage);
                 data = cryptoUtil.encryptAES(data);
                 Network.sendMessage(new EncryptedMessage(data));
             } catch (IOException e) {
@@ -163,10 +185,27 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         setAuthenticated(false);
+        canSend = true;
         keyExchange = true;
+        tvClient.setColumnResizePolicy( TableView.CONSTRAINED_RESIZE_POLICY );
+        colNameClient.setMaxWidth( 1f * Integer.MAX_VALUE * 85 );
+        colSizeClient.setMaxWidth( 1f * Integer.MAX_VALUE * 15 );
+        tvServer.setColumnResizePolicy( TableView.CONSTRAINED_RESIZE_POLICY );
+        colNameServer.setMaxWidth( 1f * Integer.MAX_VALUE * 85 );
+        colSizeServer.setMaxWidth( 1f * Integer.MAX_VALUE * 15 );
+        colNameClient.setCellValueFactory(new PropertyValueFactory<>("name"));
+        colSizeClient.setCellValueFactory(new PropertyValueFactory<>("size"));
+        colNameServer.setCellValueFactory(new PropertyValueFactory<>("name"));
+        colSizeServer.setCellValueFactory(new PropertyValueFactory<>("size"));
+        parentDirectory = new StoredFile();
         cryptoUtil = new CryptoUtil();
+        serialization = new Serialization();
         Network.start();
         encryption(new SystemMessage());
+        clientHandler();
+    }
+
+    private void clientHandler(){
         Thread thread = new Thread(()->{
             try {
                 while (true){
@@ -177,7 +216,7 @@ public class Controller implements Initializable {
                         data = cryptoUtil.decryptAES(data);
                         Object obj = null;
                         try {
-                            obj = Serialization.deserialize(data);
+                            obj = serialization.deserialize(data);
                         } catch (IOException e) {
                             logger.log(Level.ERROR, "Data deserialization error: ", e);
                         } catch (ClassNotFoundException e) {
@@ -194,6 +233,9 @@ public class Controller implements Initializable {
                     if (abstractMessage instanceof SystemMessage){
                         SystemMessage systemMessage = (SystemMessage)abstractMessage;
                         switch (systemMessage.getTypeMessage()){
+                            case CanSend:
+                                canSend = true;
+                                break;
                             case SecretKeyAES:
                             case PublicKeyRSA:
                                 encryption(systemMessage);
@@ -223,28 +265,35 @@ public class Controller implements Initializable {
 
 //Навигация по листам.
     public void storageNavigation(){
-        lvClientFilesList.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 1) {
-                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-                currentSelectionInListView = filename;
-                selectedListView = SelectedListView.ClientList;
-            }
-            if (event.getClickCount() == 2) {
-                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-                currentSelectionInListView = filename;
-                selectedListView = SelectedListView.ClientList;
-                if (filename == null){return;}
-                if (filename.equals("[..]")){
-                    currentClientPath = Paths.get(currentClientPath).getParent().toString();
-                    refreshClientFilesList(currentClientPath);
-                }
-                if (Files.isDirectory(Paths.get(currentClientPath+"\\"+filename),LinkOption.NOFOLLOW_LINKS)){
-                    currentClientPath += "\\"+filename;
-                    refreshClientFilesList(currentClientPath);
-                }
+//        lvClientFilesList.setOnMouseClicked(event -> {
+//            if (event.getClickCount() == 1) {
+//                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
+//                currentSelectionInListView = filename;
+//                selectedListView = SelectedListView.ClientList;
+//            }
+//            if (event.getClickCount() == 2) {
+//                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
+//                currentSelectionInListView = filename;
+//                selectedListView = SelectedListView.ClientList;
+//                if (filename == null){return;}
+//                if (filename.equals("[..]")){
+//                    currentClientPath = Paths.get(currentClientPath).getParent().toString();
+//                    refreshClientFilesList(currentClientPath);
+//                }
+//                if (Files.isDirectory(Paths.get(currentClientPath+"\\"+filename),LinkOption.NOFOLLOW_LINKS)){
+//                    currentClientPath += "\\"+filename;
+//                    refreshClientFilesList(currentClientPath);
+//                }
+//
+//            }
+//        });
 
-            }
-        });
+
+
+
+
+
+
 
         lvServerFilesList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
@@ -270,16 +319,35 @@ public class Controller implements Initializable {
 //Обновление клиентского листа
     private void refreshClientFilesList(String directoryName){
         updateGUI(()->{
-            lvClientFilesList.getItems().clear();
+            Path path = Paths.get(directoryName);
+            tvClient.getItems().clear();
             if (!currentClientPath.equals(rootClientPath)){
-                lvClientFilesList.getItems().add("[..]");
+                tvClient.getItems().add(parentDirectory);
             }
+            tvClient.getItems().add(parentDirectory);
             try {
-                Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
+                Files.list(path).forEach(o -> {
+                    try {
+                        tvClient.getItems().add(new StoredFile(o));
+                    } catch (IOException e) {
+                        logger.log(Level.ERROR, "Create storedFile error: ", e);
+                    }
+                });
             } catch (IOException e) {
                 logger.log(Level.ERROR, "List update error: ", e);
             }
         });
+//        updateGUI(()->{
+//            lvClientFilesList.getItems().clear();
+//            if (!currentClientPath.equals(rootClientPath)){
+//                lvClientFilesList.getItems().add("[..]");
+//            }
+//            try {
+//                Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
+//            } catch (IOException e) {
+//                logger.log(Level.ERROR, "List update error: ", e);
+//            }
+//        });
     }
 
 //Формотирование пути для вывода в листы только последней части
@@ -332,7 +400,7 @@ public class Controller implements Initializable {
 
 //Непосредственно отправка (путь пересылайемого файла, путь назначения, данные (если есть), файл/каталог)
     private void send(Path path){
-        byte[] data = new byte[1024*1024];
+        byte[] data = new byte[10 *1024*1024];
         FileMessage fileMessage = new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, data, true);
         if (Files.isDirectory(path)){
             encryption(new FileMessage(path.subpath(Paths.get(currentClientPath).getNameCount(),path.getNameCount()).toString(), currentServerPath, null, false));
@@ -341,10 +409,14 @@ public class Controller implements Initializable {
                 FileInputStream fis = new FileInputStream(path.toFile());
                 while (fis.available() > 0) {
                     int temp = fis.read(data);
-                    if (temp < 1024 * 1024) {
+                    if (temp <10 * 1024 * 1024) {
                         fileMessage.setData(Arrays.copyOfRange(data, 0, temp));
                     }
+                    while (!canSend){
+                        TimeUnit.MILLISECONDS.sleep(100);
+                    }
                     encryption(fileMessage);
+                    canSend = false;
                     fileMessage.setNewFile(false);
                 }
                 fis.close();
@@ -375,6 +447,7 @@ public class Controller implements Initializable {
             }else {
                 Files.createDirectories(path);
             }
+            Network.sendMessage(new SystemMessage().setTypeMessage(Command.CanSend));
         } catch (IOException e) {
             logger.log(Level.ERROR, "File writing error: ", e);
         }

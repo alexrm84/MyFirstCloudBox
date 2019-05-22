@@ -14,15 +14,16 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
 
     private static final Logger logger = LogManager.getLogger(CryptoDecoder.class);
     private CryptoUtil cryptoUtil;
+    private Serialization serialization;
 
-    public CryptoDecoder(CryptoUtil cryptoUtil) {
+    public CryptoDecoder(CryptoUtil cryptoUtil, Serialization serialization) {
         this.cryptoUtil = cryptoUtil;
+        this.serialization = serialization;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         try {
-            System.out.println("подключился клиент");
             if (msg == null) {
                 return;
             }
@@ -47,7 +48,7 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
                 data = cryptoUtil.decryptAES(data);
                 Object obj = null;
                 try {
-                    obj = Serialization.deserialize(data);
+                    obj = serialization.deserialize(data);
                 } catch (IOException e) {
                     logger.log(Level.ERROR, "Data deserialization error: ", e);
                 } catch (ClassNotFoundException e) {
