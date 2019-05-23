@@ -41,6 +41,8 @@
         <Button onAction="#sendFiles" text="Отправить" />
         <Button onAction="#receiveFiles" text="Получить" />
         <Button onAction="#deleteFiles" text="Удалить" />
+        <Button onAction="#refreshData" text="Обновить" />
+        <Button onAction="#exit" text="Выход" />
     </HBox>
 
 </VBox>

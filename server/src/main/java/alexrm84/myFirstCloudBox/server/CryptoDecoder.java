@@ -31,12 +31,12 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
                 SystemMessage systemMessage = (SystemMessage)msg;
                 switch (systemMessage.getTypeMessage()){
                     case PublicKeyRSA:
-                        System.out.println("получен запрос РСА");
+                        logger.log(Level.INFO, "RSA public key request received");
                         cryptoUtil.initRSA();
                         ctx.writeAndFlush(systemMessage.setPublicKeyRSA(cryptoUtil.getKeyPairRSA().getPublic()));
                         break;
                     case SecretKeyAES:
-                        System.out.println("получен АЕС");
+                        logger.log(Level.INFO, "AES received");
                         cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
                         ctx.writeAndFlush(systemMessage);
                         break;

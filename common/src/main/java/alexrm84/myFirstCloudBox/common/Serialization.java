@@ -38,7 +38,6 @@ public class Serialization {
     }
 
     public Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
-        System.out.println("десериализация" + new String(bytes));
         try(ByteArrayInputStream b = new ByteArrayInputStream(bytes)){
             try(ObjectInputStream o = new ObjectInputStream(b)){
                 return o.readObject();

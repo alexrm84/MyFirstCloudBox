@@ -12,7 +12,7 @@
 
     <Loggers>
         <Logger name= "alexrm84.myFirstCloudBox.client" additivity="false">
-            <AppenderRef ref="Console" level="debug"/>
+            <AppenderRef ref="Console" level="info"/>
             <AppenderRef ref="File"  level="info"/>
         </Logger>
 

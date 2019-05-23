@@ -2,8 +2,10 @@ package alexrm84.myFirstCloudBox.server;
 
 import alexrm84.myFirstCloudBox.common.Command;
 import alexrm84.myFirstCloudBox.common.FileMessage;
+import alexrm84.myFirstCloudBox.common.StoredFile;
 import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
+import lombok.Getter;
 import lombok.Setter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -20,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 public class Worker {
     private String rootStorage;
     private String userStorage;
+    @Getter
+    private String userName;
     private SQLHandler sqlHandler;
     @Setter
     private boolean canSend;
@@ -35,7 +39,8 @@ public class Worker {
     public boolean authorization(ChannelHandlerContext ctx, SystemMessage systemMessage){
         sqlHandler.connect();
         if (sqlHandler.checkLoginAndPassword(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
-            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
+            userName = systemMessage.getLoginAndPassword()[0];
+            userStorage = rootStorage + userName;
             ctx.writeAndFlush(systemMessage.setAuthorization(true).setCurrentServerPath(userStorage));
             ctx.writeAndFlush(systemMessage.setTypeMessage(Command.Refresh)
                     .setPathsList(refreshFiles(userStorage))
@@ -52,7 +57,8 @@ public class Worker {
     public boolean createUser(ChannelHandlerContext ctx, SystemMessage systemMessage){
         sqlHandler.connect();
         if (sqlHandler.createUser(systemMessage.getLoginAndPassword()[0], systemMessage.getLoginAndPassword()[1])){
-            userStorage = rootStorage + systemMessage.getLoginAndPassword()[0];
+            userName = systemMessage.getLoginAndPassword()[0];
+            userStorage = rootStorage + userName;
             try {
                 Files.createDirectories(Paths.get(userStorage));
             } catch (IOException e) {
@@ -71,23 +77,28 @@ public class Worker {
     }
 
 //Создание списка файлов на запрос обновления
-    public LinkedList<String> refreshFiles(String path){
-        LinkedList<String> filesList = new LinkedList<>();
+    public LinkedList<StoredFile> refreshFiles(String path){
+        LinkedList<StoredFile> pathList = new  LinkedList();
         try {
-            Files.list(Paths.get(path)).forEach(p->filesList.add(p.toString()));
+            Files.list(Paths.get(path)).forEach(p-> {
+                try {
+                    pathList.add(new StoredFile(p));
+                } catch (IOException e) {
+                    logger.log(Level.ERROR, "Create storedFile error: ", e);
+                }
+            });
         } catch (IOException e) {
             logger.log(Level.ERROR, "List update error: ", e);
         }
-        System.out.println(filesList);
-        return filesList;
+        return pathList;
     }
 
-//формирование списка файлов при навигации по листу
-    public void checkPath(ChannelHandlerContext ctx, SystemMessage systemMessage){
-        if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
-            ctx.writeAndFlush(systemMessage.setPathsList(refreshFiles(systemMessage.getRequestedPath())).setCurrentServerPath(systemMessage.getRequestedPath()));
-        }
-    }
+////формирование списка файлов при навигации по листу
+//    public void checkPath(ChannelHandlerContext ctx, SystemMessage systemMessage){
+//        if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
+//            ctx.writeAndFlush(systemMessage.setPathsList(refreshFiles(systemMessage.getRequestedPath())).setCurrentServerPath(systemMessage.getRequestedPath()));
+//        }
+//    }
 
 //Запись файлов
     public void writeFile(ChannelHandlerContext ctx, FileMessage fileMessage){

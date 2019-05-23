@@ -2,7 +2,7 @@ package alexrm84.myFirstCloudBox.common;
 
 public enum  Command {
     Refresh,
-    CheckPath,
+    Exit,
     ReceiveFiles,
     DeleteFiles,
     Authorization,
