@@ -27,7 +27,7 @@ public class Server {
                             socketChannel.pipeline().addLast(
                                     new ObjectEncoder(),
                                     new CryptoEncoder(cryptoUtil, serialization),
-                                    new ObjectDecoder(15*1024*1024, ClassResolvers.cacheDisabled(null)),
+                                    new ObjectDecoder(22*1024*1024, ClassResolvers.cacheDisabled(null)),
                                     new CryptoDecoder(cryptoUtil, serialization),
                                     new DistributorHandler()
                             );

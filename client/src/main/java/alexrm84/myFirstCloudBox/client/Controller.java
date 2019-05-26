@@ -112,7 +112,6 @@ public class Controller implements Initializable {
 //Запрос авторизации.
     public void requestAuthorization(){
         if (!tfLogin.getText().trim().equals("") && !pfPassword.getText().trim().equals("")){
-            System.out.println();
             encryption(new SystemMessage()
                     .setTypeMessage(Command.Authorization)
                     .setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
@@ -168,13 +167,13 @@ public class Controller implements Initializable {
             }
         }
         if (!keyExchange){
-            try {
+//            try {
                 byte[] data = serialization.serialize(abstractMessage);
                 data = cryptoUtil.encryptAES(data);
                 Network.sendMessage(new EncryptedMessage(data));
-            } catch (IOException e) {
-                logger.log(Level.ERROR, "Data serialization error: ", e);
-            }
+//            } catch (IOException e) {
+//                logger.log(Level.ERROR, "Data serialization error: ", e);
+//            }
         }
     }
 
@@ -210,14 +209,7 @@ public class Controller implements Initializable {
                         EncryptedMessage em = (EncryptedMessage)abstractMessage;
                         byte[] data = em.getData();
                         data = cryptoUtil.decryptAES(data);
-                        Object obj = null;
-                        try {
-                            obj = serialization.deserialize(data);
-                        } catch (IOException e) {
-                            logger.log(Level.ERROR, "Data deserialization error: ", e);
-                        } catch (ClassNotFoundException e) {
-                            logger.log(Level.ERROR, "Data deserialization error: ", e);
-                        }
+                        Object obj = serialization.deserialize(data);
                         if (obj instanceof AbstractMessage){
                             abstractMessage = (AbstractMessage)obj;
                         }
@@ -284,7 +276,6 @@ public class Controller implements Initializable {
             if (event.getClickCount() == 1) {
                 currentSelectionObj = (StoredFile) tvServer.getSelectionModel().getSelectedItem();
                 selectedList = SelectedListView.ServerList;
-                System.out.println("1 клик  "+currentSelectionObj.getPath());
                 return;
             }
             if (event.getClickCount() == 2) {
@@ -298,7 +289,6 @@ public class Controller implements Initializable {
                 }
                 if (!currentSelectionObj.isFile()){
                     currentServerPath = currentSelectionObj.getPath();
-                    System.out.println("2 клика   "+currentSelectionObj.getPath());
                     refreshServerFilesList(currentServerPath);
                 }
             }

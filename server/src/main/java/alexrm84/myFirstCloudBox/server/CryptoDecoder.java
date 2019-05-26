@@ -8,8 +8,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-
 public class CryptoDecoder extends ChannelInboundHandlerAdapter {
 
     private static final Logger logger = LogManager.getLogger(CryptoDecoder.class);
@@ -46,14 +44,7 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
                 EncryptedMessage em = (EncryptedMessage)msg;
                 byte[] data = em.getData();
                 data = cryptoUtil.decryptAES(data);
-                Object obj = null;
-                try {
-                    obj = serialization.deserialize(data);
-                } catch (IOException e) {
-                    logger.log(Level.ERROR, "Data deserialization error: ", e);
-                } catch (ClassNotFoundException e) {
-                    logger.log(Level.ERROR, "Data deserialization error: ", e);
-                }
+                Object obj = serialization.deserialize(data);
                 ctx.fireChannelRead(obj);
             }
         }finally {
