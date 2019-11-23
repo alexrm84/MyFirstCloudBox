@@ -8,8 +8,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-
 public class CryptoDecoder extends ChannelInboundHandlerAdapter {
 
     private static final Logger logger = LogManager.getLogger(CryptoDecoder.class);
@@ -31,12 +29,12 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
                 SystemMessage systemMessage = (SystemMessage)msg;
                 switch (systemMessage.getTypeMessage()){
                     case PublicKeyRSA:
-                        System.out.println("получен запрос РСА");
+                        logger.log(Level.INFO, "RSA public key request received");
                         cryptoUtil.initRSA();
                         ctx.writeAndFlush(systemMessage.setPublicKeyRSA(cryptoUtil.getKeyPairRSA().getPublic()));
                         break;
                     case SecretKeyAES:
-                        System.out.println("получен АЕС");
+                        logger.log(Level.INFO, "AES received");
                         cryptoUtil.decryptRSA(systemMessage.getSecretKeyAES());
                         ctx.writeAndFlush(systemMessage);
                         break;
@@ -46,14 +44,7 @@ public class CryptoDecoder extends ChannelInboundHandlerAdapter {
                 EncryptedMessage em = (EncryptedMessage)msg;
                 byte[] data = em.getData();
                 data = cryptoUtil.decryptAES(data);
-                Object obj = null;
-                try {
-                    obj = serialization.deserialize(data);
-                } catch (IOException e) {
-                    logger.log(Level.ERROR, "Data deserialization error: ", e);
-                } catch (ClassNotFoundException e) {
-                    logger.log(Level.ERROR, "Data deserialization error: ", e);
-                }
+                Object obj = serialization.deserialize(data);
                 ctx.fireChannelRead(obj);
             }
         }finally {

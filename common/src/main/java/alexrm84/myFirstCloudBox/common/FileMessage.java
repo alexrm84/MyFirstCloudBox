@@ -10,6 +10,8 @@ public class FileMessage extends AbstractMessage {
     private byte[] data;
     private String destinationPath;
 
+    public FileMessage(){}
+
     public FileMessage(String filePath, String destinationPath, byte[] data, boolean isFile){
         this.isFile = isFile;
         this.newFile = true;

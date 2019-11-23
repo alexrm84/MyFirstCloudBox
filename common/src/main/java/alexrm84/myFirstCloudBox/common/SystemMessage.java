@@ -1,5 +1,6 @@
 package alexrm84.myFirstCloudBox.common;
 
+import javafx.collections.ObservableList;
 import lombok.Getter;
 
 import java.security.PublicKey;
@@ -13,8 +14,7 @@ public class SystemMessage extends AbstractMessage {
     private Command typeMessage;
     private String requestedPath;
     private String currentServerPath, currentClientPath;
-    private LinkedList<String> pathsList;
-//    private byte[][] loginAndPassword;
+    private LinkedList<StoredFile> pathsList;
     private String[] loginAndPassword;
     private boolean authorization;
 
@@ -33,7 +33,7 @@ public class SystemMessage extends AbstractMessage {
         return this;
     }
 
-    public SystemMessage setPathsList(LinkedList<String> pathsList) {
+    public SystemMessage setPathsList(LinkedList<StoredFile> pathsList) {
         this.pathsList = pathsList;
         return this;
     }

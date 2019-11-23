@@ -5,8 +5,12 @@ import alexrm84.myFirstCloudBox.common.SystemMessage;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class DistributorHandler extends ChannelInboundHandlerAdapter {
+    private static final Logger logger = LogManager.getLogger(DistributorHandler.class);
     private boolean authorization;
     Worker worker;
 
@@ -31,14 +35,15 @@ public class DistributorHandler extends ChannelInboundHandlerAdapter {
                         case Refresh:
                             ctx.writeAndFlush(systemMessage.setPathsList(worker.refreshFiles(systemMessage.getRequestedPath())));
                             break;
-                        case CheckPath:
-                            worker.checkPath(ctx, systemMessage);
-                            break;
                         case ReceiveFiles:
                             worker.sendFiles(ctx, systemMessage);
                             break;
                         case DeleteFiles:
                             worker.deleteFiles(ctx, systemMessage);
+                            break;
+                        case Exit:
+                            logger.log(Level.INFO, "User: " + worker.getUserName() + " logout.");
+                            ctx.close();
                             break;
                     }
                 }

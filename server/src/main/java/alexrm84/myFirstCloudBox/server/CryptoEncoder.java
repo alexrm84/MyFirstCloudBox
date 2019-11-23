@@ -33,13 +33,13 @@ public class CryptoEncoder extends ChannelOutboundHandlerAdapter {
                 keyExchange = false;
             }
         } else {
-            try {
+//            try {
                 byte[] data = serialization.serialize(msg);
                 data = cryptoUtil.encryptAES(data);
                 ctx.writeAndFlush(new EncryptedMessage(data));
-            } catch (IOException e) {
-                logger.log(Level.ERROR, "Data serialization error: ", e);
-            }
+//            } catch (IOException e) {
+//                logger.log(Level.ERROR, "Data serialization error: ", e);
+//            }
         }
     }
 }

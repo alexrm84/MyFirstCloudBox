@@ -64,8 +64,8 @@ public class Controller implements Initializable {
     private String username;
     private String currentClientPath, currentServerPath;
     private String rootClientPath, rootServerPath;
-    private String currentSelectionInListView;
-    private SelectedListView selectedListView;
+    private StoredFile currentSelectionObj;
+    private SelectedListView selectedList;
     StoredFile parentDirectory;
 
     private enum SelectedListView {ServerList, ClientList}
@@ -93,7 +93,7 @@ public class Controller implements Initializable {
         refreshClientFilesList(currentClientPath);
 //        lvServerFilesList.getItems().clear();
         tvServer.getItems().clear();
-        requestRefreshServerFilesList(currentServerPath);
+        refreshServerFilesList(currentServerPath);
         storageNavigation();
     }
 
@@ -112,7 +112,6 @@ public class Controller implements Initializable {
 //Запрос авторизации.
     public void requestAuthorization(){
         if (!tfLogin.getText().trim().equals("") && !pfPassword.getText().trim().equals("")){
-            System.out.println();
             encryption(new SystemMessage()
                     .setTypeMessage(Command.Authorization)
                     .setLoginAndPassword(new String[]{tfLogin.getText(), pfPassword.getText()}));
@@ -150,35 +149,31 @@ public class Controller implements Initializable {
             SystemMessage systemMessage = (SystemMessage)abstractMessage;
             if (systemMessage.getTypeMessage() == null) {
                 Network.sendMessage(new SystemMessage().setTypeMessage(Command.PublicKeyRSA));
-                logger.log(Level.INFO, "отправлен запрос открытого ключа РСА");
-                System.out.println("отправлен запрос открытого ключа РСА");
+                logger.log(Level.INFO, "RSA public key request sent");
                 return;
             }
             if (systemMessage.getTypeMessage().equals(Command.PublicKeyRSA)) {
                 cryptoUtil.setKeyPairRSA(new KeyPair(systemMessage.getPublicKeyRSA(), null));
-                logger.log(Level.INFO, "РСА получен");
-                System.out.println("РСА получен");
+                logger.log(Level.INFO, "RSA received");
                 cryptoUtil.initAES();
                 Network.sendMessage(new SystemMessage().setTypeMessage(Command.SecretKeyAES).setSecretKeyAES(cryptoUtil.encryptRSA(cryptoUtil.getSecretKeyAES())));
-                logger.log(Level.INFO, "Отправлен АЕС");
-                System.out.println("Отправлен АЕС");
+                logger.log(Level.INFO, "AES sent");
                 return;
             }
             if (systemMessage.getTypeMessage().equals(Command.SecretKeyAES)) {
                 keyExchange = false;
-                logger.log(Level.INFO, "АЕС сервером получен");
-                System.out.println("АЕС сервером получен");
+                logger.log(Level.INFO, "AES server received");
                 return;
             }
         }
         if (!keyExchange){
-            try {
+//            try {
                 byte[] data = serialization.serialize(abstractMessage);
                 data = cryptoUtil.encryptAES(data);
                 Network.sendMessage(new EncryptedMessage(data));
-            } catch (IOException e) {
-                logger.log(Level.ERROR, "Data serialization error: ", e);
-            }
+//            } catch (IOException e) {
+//                logger.log(Level.ERROR, "Data serialization error: ", e);
+//            }
         }
     }
 
@@ -214,14 +209,7 @@ public class Controller implements Initializable {
                         EncryptedMessage em = (EncryptedMessage)abstractMessage;
                         byte[] data = em.getData();
                         data = cryptoUtil.decryptAES(data);
-                        Object obj = null;
-                        try {
-                            obj = serialization.deserialize(data);
-                        } catch (IOException e) {
-                            logger.log(Level.ERROR, "Data deserialization error: ", e);
-                        } catch (ClassNotFoundException e) {
-                            logger.log(Level.ERROR, "Data deserialization error: ", e);
-                        }
+                        Object obj = serialization.deserialize(data);
                         if (obj instanceof AbstractMessage){
                             abstractMessage = (AbstractMessage)obj;
                         }
@@ -247,9 +235,6 @@ public class Controller implements Initializable {
                             case Refresh:
                                 refreshServerFilesList(systemMessage.getPathsList());
                                 break;
-                            case CheckPath:
-                                checkServerPathResult(systemMessage);
-                                break;
                         }
                     }
                 }
@@ -265,53 +250,47 @@ public class Controller implements Initializable {
 
 //Навигация по листам.
     public void storageNavigation(){
-//        lvClientFilesList.setOnMouseClicked(event -> {
-//            if (event.getClickCount() == 1) {
-//                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-//                currentSelectionInListView = filename;
-//                selectedListView = SelectedListView.ClientList;
-//            }
-//            if (event.getClickCount() == 2) {
-//                String filename = lvClientFilesList.getSelectionModel().getSelectedItem();
-//                currentSelectionInListView = filename;
-//                selectedListView = SelectedListView.ClientList;
-//                if (filename == null){return;}
-//                if (filename.equals("[..]")){
-//                    currentClientPath = Paths.get(currentClientPath).getParent().toString();
-//                    refreshClientFilesList(currentClientPath);
-//                }
-//                if (Files.isDirectory(Paths.get(currentClientPath+"\\"+filename),LinkOption.NOFOLLOW_LINKS)){
-//                    currentClientPath += "\\"+filename;
-//                    refreshClientFilesList(currentClientPath);
-//                }
-//
-//            }
-//        });
-
-
-
-
-
-
-
-
-        lvServerFilesList.setOnMouseClicked(event -> {
+        tvClient.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
-                String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
-                currentSelectionInListView = filename;
-                selectedListView = SelectedListView.ServerList;
+                currentSelectionObj = (StoredFile) tvClient.getSelectionModel().getSelectedItem();
+                selectedList = SelectedListView.ClientList;
+                return;
             }
             if (event.getClickCount() == 2) {
-                String filename = lvServerFilesList.getSelectionModel().getSelectedItem();
-                currentSelectionInListView = filename;
-                selectedListView = SelectedListView.ServerList;
-                if (filename == null){return;}
-                if (filename.equals("[..]")){
-                    currentServerPath = Paths.get(currentServerPath).getParent().toString();
-                    requestRefreshServerFilesList(currentServerPath);
+                currentSelectionObj = (StoredFile) tvClient.getSelectionModel().getSelectedItem();
+                selectedList = SelectedListView.ClientList;
+                if (currentSelectionObj == null){return;}
+                if (currentSelectionObj.getName().equals(parentDirectory.getName())){
+                    currentClientPath = Paths.get(currentClientPath).getParent().toString();
+                    refreshClientFilesList(currentClientPath);
                     return;
                 }
-                checkServerPath(currentServerPath+"\\"+filename);
+                if (!currentSelectionObj.isFile()){
+                    currentClientPath = currentSelectionObj.getPath();
+                    refreshClientFilesList(currentClientPath);
+                }
+            }
+        });
+
+        tvServer.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 1) {
+                currentSelectionObj = (StoredFile) tvServer.getSelectionModel().getSelectedItem();
+                selectedList = SelectedListView.ServerList;
+                return;
+            }
+            if (event.getClickCount() == 2) {
+                currentSelectionObj = (StoredFile) tvServer.getSelectionModel().getSelectedItem();
+                selectedList = SelectedListView.ServerList;
+                if (currentSelectionObj == null){return;}
+                if (currentSelectionObj.getName().equals(parentDirectory.getName())){
+                    currentServerPath = Paths.get(currentServerPath).getParent().toString();
+                    refreshServerFilesList(currentServerPath);
+                    return;
+                }
+                if (!currentSelectionObj.isFile()){
+                    currentServerPath = currentSelectionObj.getPath();
+                    refreshServerFilesList(currentServerPath);
+                }
             }
         });
     }
@@ -324,7 +303,6 @@ public class Controller implements Initializable {
             if (!currentClientPath.equals(rootClientPath)){
                 tvClient.getItems().add(parentDirectory);
             }
-            tvClient.getItems().add(parentDirectory);
             try {
                 Files.list(path).forEach(o -> {
                     try {
@@ -337,60 +315,28 @@ public class Controller implements Initializable {
                 logger.log(Level.ERROR, "List update error: ", e);
             }
         });
-//        updateGUI(()->{
-//            lvClientFilesList.getItems().clear();
-//            if (!currentClientPath.equals(rootClientPath)){
-//                lvClientFilesList.getItems().add("[..]");
-//            }
-//            try {
-//                Files.list(Paths.get(directoryName)).forEach(o->lvClientFilesList.getItems().add(getNameFromPath(o)));
-//            } catch (IOException e) {
-//                logger.log(Level.ERROR, "List update error: ", e);
-//            }
-//        });
-    }
-
-//Формотирование пути для вывода в листы только последней части
-    private String getNameFromPath(Path path){
-        return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) ? path.getName((path.getNameCount()-1)).toString() : path.getFileName().toString();
     }
 
 //Запрос обновления серверного листа
-    private void requestRefreshServerFilesList(String directoryName){
-        SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage(Command.Refresh).setRequestedPath(directoryName);
-        encryption(systemMessage);
+    private void refreshServerFilesList(String directoryName){
+        encryption(new SystemMessage().setTypeMessage(Command.Refresh).setRequestedPath(directoryName));
     }
 
 //Обновление серверного листа
-    private void refreshServerFilesList(LinkedList<String> pathList){
+    private void refreshServerFilesList(LinkedList<StoredFile> pathList){
         updateGUI(()->{
-            lvServerFilesList.getItems().clear();
+            tvServer.getItems().clear();
+            ObservableList<StoredFile> observableList = FXCollections.observableArrayList(pathList);
             if (!currentServerPath.equals(rootServerPath)){
-                lvServerFilesList.getItems().add("[..]");
+                observableList.add(0, parentDirectory);
             }
-            pathList.forEach(p->lvServerFilesList.getItems().add(getNameFromPath(Paths.get(p))));
+            tvServer.setItems(observableList);
         });
-    }
-
-//Навигайия по серверному листу (запрос)
-    private void checkServerPath(String directoryName){
-        SystemMessage systemMessage = new SystemMessage();
-        systemMessage.setTypeMessage(Command.CheckPath).setRequestedPath(directoryName);
-        encryption(systemMessage);
-    }
-
-//Навигайия по серверному листу (если папка то входим в нее, если файл ничего не делаем)
-    private void checkServerPathResult(SystemMessage systemMessage){
-        if (Files.isDirectory(Paths.get(systemMessage.getRequestedPath()))){
-            currentServerPath = systemMessage.getCurrentServerPath();
-            refreshServerFilesList(systemMessage.getPathsList());
-        }
     }
 
 //Отправка файла/каталога, стартовый метод
     public void sendFiles(){
-        Path path = Paths.get(currentClientPath + "\\" + currentSelectionInListView);
+        Path path = Paths.get(currentSelectionObj.getPath());
         try {
             Files.walk(path).sorted(Comparator.naturalOrder()).forEach(p -> send(p));
         } catch (IOException e) {
@@ -431,7 +377,7 @@ public class Controller implements Initializable {
         encryption(new SystemMessage()
                 .setTypeMessage(Command.ReceiveFiles)
                 .setCurrentClientPath(currentClientPath)
-                .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
+                .setRequestedPath(currentSelectionObj.getPath()));
     }
 
 //Запись файлов
@@ -456,8 +402,8 @@ public class Controller implements Initializable {
 
 //Удаление файлов
     public void deleteFiles() {
-        if (selectedListView.equals(SelectedListView.ClientList)){
-            Path path = Paths.get(currentClientPath + "\\" + currentSelectionInListView);
+        if (selectedList.equals(SelectedListView.ClientList)){
+            Path path = Paths.get(currentSelectionObj.getPath());
             try {
                 Files.walk(path).sorted(Comparator.reverseOrder()).forEach(p -> {
                     try {
@@ -474,9 +420,16 @@ public class Controller implements Initializable {
         }else {
             encryption(new SystemMessage()
                     .setTypeMessage(Command.DeleteFiles)
-                    .setRequestedPath(currentServerPath + "\\" + currentSelectionInListView));
+                    .setRequestedPath(currentSelectionObj.getPath()));
         }
     }
+
+    public void exit() {
+        encryption(new SystemMessage().setTypeMessage(Command.Exit));
+        Network.stop();
+    }
+
+
 
     private void updateGUI(Runnable r){
         if (Platform.isFxApplicationThread()){
